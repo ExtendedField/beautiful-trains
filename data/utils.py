@@ -1,16 +1,32 @@
 import pandas as pd
 import os
-from sodapy import Socrata
 import json
 
-def get_data(city, refresh=False,):
+def get_data(city, dataset, refresh=False,):
     """
     Checks if data is present locally. If it is, the data is returned. If it is not, the data
     is downloaded, written to the expected directory, and then returned. If refresh=True, the data
     is downloaded by force.
     """
 
-    # one day we will un-hard-code this
+    # Loads json info for requested city, initialized the relevant client, and extracts
+    # information needed to locate or download the data as necessary.
+    json_dir = "./city_data_locations.json"
+    city_info = read_city_json(json_dir, city)
+
+    if city_info['client_api'] == "socrata":
+        from sodapy import Socrata
+        client = Socrata(city_info['website'], city_info['token'])
+    else:
+        raise Exception("Unknown client id. Please try another")
+
+    desired_ds = city_info["datasets"][dataset]
+    table_dir = desired_ds["local_dir"]
+    dataset_id = desired_ds["table_id"]
+
+    # absolute directory is likely necessary unfortunately due to the fact that this method
+    # can be called from other directories. If I think of a better way to do this, I will
+    # update the code.
     output_dir = "~/project_repos/beautiful-trains/data/" + table_dir
     # Attempt to locate data locally and return it.
     print(f"Fetching table_id: {dataset_id}\nWriting to Directory: {output_dir}")
@@ -22,7 +38,8 @@ def get_data(city, refresh=False,):
             print(f"Data not found at directory: {output_dir}. Downloading...")
 
     try:
-        # this may break if we use other client APIs. May have to parameterize
+        # this syntax may be different with other client APIs. May have to parameterize
+        # or use a more generic HTTP request package.
         results = client.get(dataset_id)
         print("Data Downloaded.")
     except:
@@ -38,23 +55,6 @@ def get_data(city, refresh=False,):
     data.to_csv(table_dir)
     return data
 
-def refresh_data(json_path, target_cities=None, refresh=False):
-    with open(json_path) as city_info_json:
-        city_info = json.load(city_info_json)
-    if not target_cities:
-        target_cities = city_info.keys()
-
-    target_cities = [city for city in target_cities if city in list(city_info.keys())]
-
-    for city_name in target_cities:
-        city = city_info[city_name]
-        # initialize Socrata client for city of chicago data
-        if city['client_api'] == "socrata":
-            client = Socrata(city['website'], city['token'])
-        else:
-            raise Exception("Unknown client id. Please try another")
-        # locate or download datasets
-        datasets = city['datasets']
-        for dataset_key in datasets:
-            dataset = datasets[dataset_key]
-            print(get_data(client, dataset['table_id'], dataset['local_dir'], refresh).head())
+def read_city_json(city, json_dir):
+    with open(json_dir) as city_info_json:
+        return json.load(city_info_json)[city]

@@ -3,6 +3,7 @@
     "client_api": "socrata",
     "website": "data.cityofchicago.org",
     "token": null,
+    "lines": ["red", "blue", "g", "brn", "p", "pexp", "y", "pnk", "o"],
     "datasets": {
       "rt_stops": {
         "local_dir": "cta/l-stops.csv",

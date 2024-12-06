@@ -23,3 +23,14 @@ class Station:
 
     def long(self):
         return self.location[0]
+
+    def connects(self, potential_connection) -> bool:
+        from numpy import sqrt
+        # if the passed station connects to this one, return true, otherwise, return false
+        # Connection clues: is the station on the same line?
+        overlapping_lines = [line for line in self.lines if line in potential_connection]
+
+        if len(overlapping_lines) < 1:
+            return False
+        elif (sqrt(self.long()-potential_connection.long()) ** 2) + (sqrt(self.lat()-potential_connection.lat()) ** 2) < 0.02:
+            return True
