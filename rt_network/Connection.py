@@ -1,11 +1,11 @@
 class Connection:
-    import Station
+    # from rt_network.Station import Station
     station1 = None
     station2 = None
 
-    def __init__(self, station1=Station(), station2=Station()):
-        station1=station1
-        station2=station2
+    def __init__(self, station1=None, station2=None):
+        self.station1=station1
+        self.station2=station2
 
     def distance(self):
         from numpy import sqrt

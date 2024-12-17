@@ -6,7 +6,7 @@ class Station:
     location = None # lat and long coordinates save in standard (x,y) format for plotting
     lines = None # list of strings corresponding to line names present at station
 
-    def __init__(self, net_id, name="", location=(0,0), lines=None):
+    def __init__(self, net_id=None, name="", location=(0,0), lines=None):
         if lines is None:
             lines = []
 
@@ -23,14 +23,3 @@ class Station:
 
     def long(self):
         return self.location[0]
-
-    def connects(self, potential_connection) -> bool:
-        from numpy import sqrt
-        # if the passed station connects to this one, return true, otherwise, return false
-        # Connection clues: is the station on the same line?
-        overlapping_lines = [line for line in self.lines if line in potential_connection]
-
-        if len(overlapping_lines) < 1:
-            return False
-        elif (sqrt(self.long()-potential_connection.long()) ** 2) + (sqrt(self.lat()-potential_connection.lat()) ** 2) < 0.02:
-            return True

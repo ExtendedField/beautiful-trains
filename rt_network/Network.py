@@ -1,18 +1,23 @@
 class Network:
-    stations = None
-    connections = None
+    # import Line
+
+    city = ""
+    lines = set()
+    connections = set()
+    stations = set()
     matrix = None
 
-    def __init__(self, stations_list = None, connections_list=None):
-        if stations_list is None:
-            stations_list = []
-        self.stations = stations_list
+    def __init__(self, city=None, lines=None):
+        if lines is None:
+            lines = set()
+        if city is None:
+            city = ""
 
-        if connections_list is None:
-            connections_list = []
-        self.connections = connections_list
+        self.lines = lines
 
-        # build matrix from connections list
+        # find connections between lines
+
+        # build matrix from lines list
 
 
     # def plot ():
