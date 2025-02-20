@@ -57,4 +57,30 @@ def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
 
+def project(lam, phi, proj="mercator", deg=True):
+    """
+    Projects latitude (phi) and longitude (lam) to the cartesian system using the specified projection formula.
+    We first convert from degrees to radians if deg is True to ensure the mathe works as expected
+
+    :param phi: latitude
+    :param lam: longitude
+    :param proj: projection formula name
+    :param deg: flag whether the passed coordinates are in degrees.
+    :return: (x, y) according to the passed projection formula
+    """
+    import math
+
+    if deg:
+        deg_to_rad = math.pi/180
+        lam = lam * deg_to_rad
+        phi = phi * deg_to_rad
+
+    if proj == "mercator":
+        x = lam
+        y = math.log(math.tan((math.pi/4)+(phi/2)))
+    else:
+        raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
+
+    return x, y
+
 

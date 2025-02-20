@@ -37,19 +37,22 @@ class Network:
             graph = nx.compose(graph, lg)
         self.graph = graph
 
-    def plot(self) -> None:
+    def plot(self, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
+        from rt_network.utils import project
 
         g = self.graph
         edge_x = []
         edge_y = []
         for edge in g.edges():
-            x0 = edge[0].long()
-            y0 = edge[0].lat()
-            x1 = edge[1].long()
-            y1 = edge[1].lat()
+            lam0 = edge[0].long()
+            phi0 = edge[0].lat()
+            x0, y0 = project(lam0, phi0, proj)
+            lam1 = edge[1].long()
+            phi1 = edge[1].lat()
+            x1, y1 = project(lam1, phi1, proj)
             edge_x.append(x0)
             edge_x.append(x1)
             edge_x.append(None)
@@ -67,8 +70,9 @@ class Network:
         node_y = []
         node_text = []
         for node in g.nodes():
-            x = node.long()
-            y = node.lat()
+            lam = node.long()
+            phi = node.lat()
+            x, y = project(lam, phi, proj)
             node_x.append(x)
             node_y.append(y)
             node_text.append(f"Name: {node.name}\nID: {node.network_id}")
@@ -83,7 +87,7 @@ class Network:
                 # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
                 # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
                 # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-                colorscale='YlGnBu',
+                colorscale='Greens',
                 reversescale=True,
                 color=[],
                 size=10,

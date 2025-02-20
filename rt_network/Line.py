@@ -22,6 +22,10 @@ class Line:
 
         graph = nx.Graph()
         graph.add_nodes_from(stations)
-        graph.add_edges_from({connection.get_connection_tuple(weighted) for connection in connections})
+        graph.add_edges_from([connection.get_connection_tuple(weighted) for connection in connections])
+
+        # remove legacy stations with no connections
+        active_stations = [connection.station1 for connection in self.connections] + [connection.station2 for connection in self.connections]
+        graph.remove_nodes_from([station for station in self.stations if station not in active_stations])
 
         self.line_graph = graph
