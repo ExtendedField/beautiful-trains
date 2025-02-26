@@ -5,6 +5,11 @@ class Network:
     stations = set()
     matrix = None
     graph = None
+    cluster_coef_list = None
+    glob_cluster_coef = None
+    avg_path_len = None
+    degree_dist = None
+    potential_connections = None
 
     def __init__(self, city=None, lines=None):
 
@@ -36,6 +41,38 @@ class Network:
         for lg in line_graphs:
             graph = nx.compose(graph, lg)
         self.graph = graph
+
+        #generate network stats
+        self.cluster_coef_list = list(nx.clustering(self.graph).values())
+        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(self.cluster_coef_list)
+        self.avg_path_len = nx.average_shortest_path_length(self.graph)
+        self.degree_dist = nx.degree_histogram(self.graph)
+
+        #TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+
+        # create a function that adds a connection and checks the new average path length
+        def get_path_length(g, edge):
+            improved_g = g.copy()
+            station1, station2 = edge
+            improved_g.add_edge(station1, station2)
+            avg_path_length = nx.average_shortest_path_length(improved_g)
+            improved_g.remove_edge(station1, station2)
+            return avg_path_length
+
+        # create a list of all connections that do not exist in graph (between lines only)
+        print("Fetching average path lengths for all possible new connections...")
+        net_complement = nx.complement(self.graph)
+        potential_new_connections = [edge for edge in net_complement.edges if
+                                     edge[0].lines.all() == edge[1].lines.all()]
+        path_lengths = pd.DataFrame(index=pd.MultiIndex.from_tuples(potential_new_connections),
+                                    columns=["connection_name", "avg_path_length"])
+        for connection in potential_new_connections:
+            new_path_length = get_path_length(self.graph, connection)
+            readable_name = f"{connection[0].name} to {connection[1].name}"
+            path_lengths.loc[connection, "connection_name"] = readable_name
+            path_lengths.loc[connection, "avg_path_length"] = new_path_length
+
+        self.potential_connections = path_lengths
 
     def plot(self, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
