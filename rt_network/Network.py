@@ -7,7 +7,7 @@ class Network:
     graph = None
     cluster_coef_list = None
     glob_cluster_coef = None
-    avg_path_len = None
+    wghtd_avg_path_len = None
     degree_dist = None
     potential_connections = None
 
@@ -50,6 +50,10 @@ class Network:
 
         #TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
 
+        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/cta/pt_rider_data.csv")
+        # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
+        #
+
         # create a function that adds a connection and checks the new average path length
         def get_path_length(g, edge):
             improved_g = g.copy()
@@ -78,7 +82,7 @@ class Network:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
-        from rt_network.utils import project
+        from utils import project
 
         g = self.graph
         edge_x = []

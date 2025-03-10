@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import json
 
-def get_data(city, dataset, refresh=False,) -> pd.DataFrame:
+def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
     """
     Checks if data is present locally. If it is, the data is returned. If it is not, the data
     is downloaded, written to the expected directory, and then returned. If refresh=True, the data
@@ -38,19 +38,19 @@ def get_data(city, dataset, refresh=False,) -> pd.DataFrame:
     try:
         # this syntax may be different with other client APIs. May have to parameterize
         # or use a more generic HTTP request package.
-        results = client.get(dataset_id)
+        results = client.get(dataset_id, **query_params)
         print("Data Downloaded.")
     except:
         #maybe make this more informative
         raise Exception("Unable to fetch data. Check table key in city_info.json")
 
     print(f"Saving data to: {output_dir}")
-    list_dir = table_dir.split("/")
+    list_dir = output_dir.split("/")
     table_target_dir = "/".join(list_dir[:-1]) + "/"
-    if not os.path.exists(output_dir):
-        os.mkdir(table_target_dir)
+    if not os.path.exists(table_target_dir):
+        os.makedirs(table_target_dir)
     data = pd.DataFrame.from_records(results)
-    data.to_csv(table_dir)
+    data.to_csv(output_dir)
     return data
 
 def read_city_json(city, json_dir):
@@ -83,4 +83,17 @@ def project(lam, phi, proj="mercator", deg=True):
 
     return x, y
 
+def build_dataset(city):
+    from sqlalchemy import create_engine
+    # create user if one does not exist
+    # write zsh script to do the below and then run it here maybe
+    # create user: transitdb_user
+
+    # create db if one does not exist
+    # create db: transit_db
+
+    pword = "conductor"
+    engine = create_engine(f"postgresql://transitdb_user:{pword}@localhost/transitdb")
+    # maybe check if db exists and then build it
+    # conditional to select relevant data and add tables to dataset in db
 

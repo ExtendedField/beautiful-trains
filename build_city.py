@@ -6,7 +6,7 @@ from rt_network.Network import Network
 
 import pickle
 import argparse
-from rt_network.utils import get_data, read_city_json
+from utils import get_data, read_city_json
 from ast import literal_eval
 import numpy as np
 
@@ -23,6 +23,7 @@ refresh = args.refresh
 stations_raw = get_data(city, "stations")
 station_id_map = get_data(city, "station_id_map").set_index("station_descriptive_name").drop(columns=["station_name"])
 station_order = get_data(city, "station_order")
+daily_rail_boardings = get_data(city, "pt_rider_data", order="date DESC", limit=1000) # select most recent 1k entries to avoid API throttling
 lines = read_city_json(city, "./data/city_info.json")["lines"]
 
 # pre-process id mapping
