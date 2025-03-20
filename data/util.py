@@ -3,7 +3,12 @@ import os
 from sodapy import Socrata
 import json
 
-def get_data(client, dataset_id, table_dir, refresh=False,):
+def get_data(city, refresh=False,):
+    """
+    Checks if data is present locally. If it is, the data is returned. If it is not, the data
+    is downloaded, written to the expected directory, and then returned. If refresh=True, the data
+    is downloaded by force.
+    """
 
     # one day we will un-hard-code this
     output_dir = "~/project_repos/beautiful-trains/data/" + table_dir

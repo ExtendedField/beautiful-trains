@@ -1,4 +1,4 @@
-from data.downloader_util import refresh_data
+from data.util import refresh_data
 import pandas as pd
 import numpy as np
 from ast import literal_eval
