@@ -6,7 +6,7 @@ class Station:
     location = None # lat and long coordinates save in standard (x,y) format for plotting
     lines = None # list of strings corresponding to line names present at station
 
-    def __init__(self, net_id, name="", location=(0,0), lines=None):
+    def __init__(self, net_id=None, name="", location=(0,0), lines=None):
         if lines is None:
             lines = []
 

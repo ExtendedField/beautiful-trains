@@ -1,4 +1,3 @@
-from data.util import refresh_data
 import pandas as pd
 import numpy as np
 from ast import literal_eval
@@ -31,10 +30,10 @@ def plot_network(line_color_map, network_data):
 target_cities = ["chicago"]
 
 # refresh city data
-# refresh_data('../data/city_data_locations.json', target_cities)
+# refresh_data('../data/city_info.json', target_cities)
 
 # raw data
-l_stops = pd.read_csv("../data/cta/l-stops.csv")
+l_stops = pd.read_csv("../data/cta/stations.csv")
 lines = ["red", "blue", "g", "brn", "p", "pexp", "y", "pnk", "o"]
 colors = ['r', 'b', 'g', 'tab:brown', 'tab:purple', 'tab:purple', 'y', 'tab:pink', 'tab:orange']
 color_map = dict(zip(lines, colors))
