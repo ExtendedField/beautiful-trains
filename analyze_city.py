@@ -9,9 +9,10 @@ args = parser.parse_args()
 city = args.city_name
 
 # unpickle network object...
-pkl_network = open(f"data/rt_networks/{city}_network.pkl", "wb+")
+filedir = f"data/rt_networks/{city}_network.pkl"
+with open(filedir, 'rb') as f:
+    rt_network = pickle.load(f)
 
-unpkl_network = pickle.load(pkl_network)
-pprint.pprint(unpkl_network)
+# pprint.pprint(rt_network.graph.nodes)
 
-pkl_network.close()
+rt_network.plot()
