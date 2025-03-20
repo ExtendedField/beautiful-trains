@@ -1,4 +1,5 @@
-Beautiful Trains aims to abstract metro rapid transit networks into a set of python data structures, with the aim of identifying and visualizing low cost performance improvements to said networks.
+# Beautiful Trains Package Overview
+**Beautiful Trains** aims to abstract metro rapid transit networks into a set of python data structures, with the aim of identifying and visualizing low cost performance improvements to said networks.
 
 The long term vision is to have a set of code which accepts an arbitrary city from a list of cities verified to have the relevant data and produce relevant ways to improve the local transportation network.
 
