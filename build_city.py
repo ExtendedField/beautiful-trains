@@ -56,7 +56,7 @@ for stop in station_id_map.index.unique():
 # build lines
 # create list of connections for each line
 line_objects = set()
-for line in station_order.columns: #cant use "lines" here because the lines may have different names
+for line in station_order.columns: # cant use "lines" here because the lines may have different names
     id_list = [iden for iden in list(station_order.T.loc[line]) if str(iden) != "nan"]
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
@@ -64,7 +64,7 @@ for line in station_order.columns: #cant use "lines" here because the lines may 
         station2 = {station for station in stations if station.network_id == id_list[ind+1]}.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {station for station in stations if line in station.lines}
-    line_objects.add(Line(stations_in_line, connections))
+    line_objects.add(Line(stations_in_line, connections, weighted=True))
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
