@@ -1,7 +1,8 @@
 import pickle
 import argparse
 
-import networkx as nx
+# import networkx as nx
+# import pandas as pd
 
 # pass in city
 parser = argparse.ArgumentParser(prog='RT Network Analyzer',
@@ -15,17 +16,17 @@ filedir = f"data/rt_networks/{city}_network.pkl"
 with open(filedir, 'rb') as f:
     rt_network = pickle.load(f)
 
-# print(nx.get_edge_attributes(rt_network.graph, "weight"))
-# pprint.pprint([edge for edge in rt_network.graph.edges])
-
-#TODO: Implement showing network efficiency and then probably transfer into the class
-g = rt_network.graph
-cluster_coef = nx.clustering(g)
-avg_path = nx.average_shortest_path_length(g)
-degree_dist = nx.degree_histogram(g)
-
-print(f"Clustering Coefficient: {cluster_coef}")
-print(f"Average Path Length: {avg_path}")
-print(f"Degree Distribution: {degree_dist}")
+print("\nCurrent rail network summary stats:")
+print(f"Clustering Coefficient: {rt_network.glob_cluster_coef}")
+print(f"Average Path Length: {rt_network.avg_path_len}")
+print(f"Degree Distribution: {rt_network.degree_dist}\n")
 
 # rt_network.plot()
+
+print(rt_network.potential_connections.sort_values(by="avg_path_length", ascending=True).head(25))#.connection_name.values)
+# suggestions often overlap with existing lines. This suggests the network may benefit from express trains
+# one potential solution is to ignore new connections with a high overlap with existing ones.
+# this could be measured wby plotting the stations as points on a grid, and then measuring the correlations of the lines corresponding
+# to new connections with the existing stations, to select for more net new connections.
+
+
