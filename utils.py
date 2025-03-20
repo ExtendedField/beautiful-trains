@@ -84,16 +84,89 @@ def project(lam, phi, proj="mercator", deg=True):
     return x, y
 
 def build_dataset(city):
-    from sqlalchemy import create_engine
-    # create user if one does not exist
-    # write zsh script to do the below and then run it here maybe
-    # create user: transitdb_user
-
-    # create db if one does not exist
-    # create db: transit_db
+    from sqlalchemy import (
+        create_engine,
+        MetaData,
+        Table,
+        Column,
+        ForeignKey,
+        Integer,
+        String,
+        Date,
+        Boolean,
+        CHAR,
+    )
+    from geoalchemy2 import Geometry
+    import subprocess
+    # shell script creates the db with the name "{city}_transitdb" if it does not
+    # already exist. It also creates a user role called "transitdb_user" if it
+    # does not already exist
+    subprocess.run(['sh', './setupdb.sh', city])
 
     pword = "conductor"
-    engine = create_engine(f"postgresql://transitdb_user:{pword}@localhost/transitdb")
-    # maybe check if db exists and then build it
+    # create this as high level as you can and pass it down, once you know better where
+    # building the db fits into the module. Probably in build city.
+    engine = create_engine(f"postgresql://transitdb_user:{pword}@localhost/{city}_transitdb")
+
+    metadata_obj = MetaData()
+
+    # schemas will need to be parameterized to accept other cities transit lines, etc..
+    # for now, we will leave this hard coded for chicago
+    # TODO: implement a schema file that can easily be parameterized, and find a way to
+    #       blow up column definitions based on above schema
+
+    station_id_map = Table(
+        "station_id_map",
+        metadata_obj,
+        Column("station_name", String),
+        Column("station_descriptive_name", String),
+        Column("station_id", Integer, primary_key=True),
+    )
+
+    rider_data = Table(
+        "rider_data",
+        metadata_obj,
+        Column("station_id", Integer, primary_key=True),
+        Column("station_name", String, ForeignKey("station_id_map.station_name"), nullable=False),
+        Column("date", Date),
+        Column("rides", Integer),
+    )
+
+    station_order = Table(
+        "station_order",
+        metadata_obj,
+        Column("red", Integer),
+        Column("blue", Integer),
+        Column("green1", Integer),
+        Column("green2", Integer),
+        Column("brown", Integer),
+        Column("purple", Integer),
+        Column("purple_exp", Integer),
+        Column("yellow", Integer),
+        Column("pink", Integer),
+        Column("orange", Integer),
+    )
+
+    stations = Table(
+        "stations",
+        metadata_obj,
+        Column("stop_id", Integer, primary_key=True),
+        Column("direction_id", CHAR),
+        Column("station_name", String, ForeignKey("station_id_map.station_name"), nullable=False),
+        Column("station_descriptive_name", String),
+        Column("map_id", Integer),
+        Column("ada", Integer),
+        Column("red", Boolean),
+        Column("blue", Boolean),
+        Column("green", Boolean),
+        Column("brown", Boolean),
+        Column("purple", Boolean),
+        Column("purple_exp", Boolean),
+        Column("yellow", Boolean),
+        Column("pink", Boolean),
+        Column("orange", Boolean),
+        Column("location", Geometry('POINT')),
+    )
+
     # conditional to select relevant data and add tables to dataset in db
 
