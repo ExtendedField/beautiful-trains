@@ -11,20 +11,6 @@ from sqlalchemy import (
 
 # schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
 schemas = {
-    "station_id_map": {
-        "station_name": {
-            "type": String,
-            "params": {"args": [], "kwargs": {"unique": True}},
-        },
-        "station_descriptive_name": {
-            "type": String,
-            "params": {"args": [], "kwargs": {}},
-        },
-        "station_id": {
-            "type": String,
-            "params": {"args": [], "kwargs": {"primary_key": True}},
-        },
-    },
     "rider_data": {
         "station_id": {
             "type": Integer,
@@ -33,15 +19,14 @@ schemas = {
         "station_name": {
             "type": String,
             "params": {
-                "args": [
-                    ForeignKey("station_id_map.station_name"),
-                ],
+                "args": [],
                 "kwargs": {
                     "nullable": False,
                 },
             },
         },
         "date": {"type": Date, "params": {"args": [], "kwargs": {}}},
+        "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
     "station_order": {
@@ -65,9 +50,7 @@ schemas = {
         "station_name": {
             "type": String,
             "params": {
-                "args": [
-                    ForeignKey("station_id_map.station_name"),
-                ],
+                "args": [],
                 "kwargs": {
                     "nullable": False,
                 },
@@ -78,11 +61,10 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
         "map_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "ada": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+        "ada": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "red": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "blue": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
-        "green1": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
-        "green2": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
+        "green": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "brown": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "purple": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "purple_exp": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
