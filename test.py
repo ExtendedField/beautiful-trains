@@ -1,3 +1,3 @@
 from utils import build_dataset
 
-build_dataset("chicago")
+build_table"chicago")

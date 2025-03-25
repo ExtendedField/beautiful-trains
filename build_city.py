@@ -3,12 +3,17 @@ from rt_network.Station import Station
 from rt_network.Connection import Connection
 from rt_network.Line import Line
 from rt_network.Network import Network
+from data.schemas import schemas
 
 import pickle
 import argparse
-from utils import get_data, read_city_json
+from utils import get_data, read_city_json, build_table
 from ast import literal_eval
 import numpy as np
+from sqlalchemy import (
+    create_engine,
+    MetaData,
+)
 
 # pass in city
 parser = argparse.ArgumentParser(prog='RT Network Generator',
@@ -38,6 +43,24 @@ for col in station_id_map.columns:
 
 station_id_map = station_id_map.groupby(level=0).agg(group_funcs)
 station_id_map[lines] = station_id_map[lines].astype(bool)
+
+# load data into Postgre database
+import subprocess
+# shell script creates the db with the name "{city}_transitdb" if it does not
+# already exist. It also creates a user role called "transitdb_user" if it
+# does not already exist
+subprocess.run(['sh', './setupdb.sh', city])
+
+transit_metadata = MetaData()
+passwd = "conductor"
+engine = create_engine(f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb")
+
+for table_name, schema in schemas.items():
+    build_table(city, transit_metadata, table_name, schema)
+
+# tables are built above but are related to the metadata object, meaning we do not need to pass information
+# in or out of the function. It is sufficient to mutate the metadata object and move on, as with an "append()" call.
+transit_metadata.create_all(engine)
 
 # build network object
 # get list of stations

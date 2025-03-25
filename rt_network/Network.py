@@ -65,6 +65,7 @@ class Network:
 
         # create a list of all connections that do not exist in graph (between lines only)
         print("Fetching average path lengths for all possible new connections...")
+        # TODO: implement inline loading tracker here. How hard could it be...
         net_complement = nx.complement(self.graph)
         potential_new_connections = [edge for edge in net_complement.edges if
                                      edge[0].lines.all() == edge[1].lines.all()]

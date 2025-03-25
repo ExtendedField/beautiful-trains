@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import json
 
+
 def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
     """
     Checks if data is present locally. If it is, the data is returned. If it is not, the data
@@ -29,9 +30,10 @@ def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
             print(f"Data not found at directory: {output_dir}. Downloading...")
 
     print(f"Fetching table_id: {dataset_id}\nWriting to Directory: {output_dir}")
-    if city_info['client_api'] == "socrata":
+    if city_info["client_api"] == "socrata":
         from sodapy import Socrata
-        client = Socrata(city_info['website'], city_info['token'])
+
+        client = Socrata(city_info["website"], city_info["token"])
     else:
         raise Exception("Unknown client id. Please try another")
 
@@ -41,7 +43,7 @@ def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
         results = client.get(dataset_id, **query_params)
         print("Data Downloaded.")
     except:
-        #maybe make this more informative
+        # maybe make this more informative
         raise Exception("Unable to fetch data. Check table key in city_info.json")
 
     print(f"Saving data to: {output_dir}")
@@ -51,11 +53,16 @@ def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
         os.makedirs(table_target_dir)
     data = pd.DataFrame.from_records(results)
     data.to_csv(output_dir)
+    # TODO: 1. Write code here to write the data directly to the database, and reorder build_city.py to build the db first.
+    #       2. Redo station order with proper ids, and refactor code to account for this
+    #       3. Save no local csvs and remove them from your project.
     return data
+
 
 def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
+
 
 def project(lam, phi, proj="mercator", deg=True):
     """
@@ -71,102 +78,45 @@ def project(lam, phi, proj="mercator", deg=True):
     import math
 
     if deg:
-        deg_to_rad = math.pi/180
+        deg_to_rad = math.pi / 180
         lam = lam * deg_to_rad
         phi = phi * deg_to_rad
 
     if proj == "mercator":
         x = lam
-        y = math.log(math.tan((math.pi/4)+(phi/2)))
+        y = math.log(math.tan((math.pi / 4) + (phi / 2)))
     else:
         raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
 
     return x, y
 
-def build_dataset(city):
+
+def build_table(metadata, table_name, schema):
+    # return: probably nothing but maybe the metadata object.
     from sqlalchemy import (
-        create_engine,
-        MetaData,
         Table,
         Column,
-        ForeignKey,
-        Integer,
-        String,
-        Date,
-        Boolean,
-        CHAR,
-    )
-    from geoalchemy2 import Geometry
-    import subprocess
-    # shell script creates the db with the name "{city}_transitdb" if it does not
-    # already exist. It also creates a user role called "transitdb_user" if it
-    # does not already exist
-    subprocess.run(['sh', './setupdb.sh', city])
-
-    pword = "conductor"
-    # create this as high level as you can and pass it down, once you know better where
-    # building the db fits into the module. Probably in build city.
-    engine = create_engine(f"postgresql://transitdb_user:{pword}@localhost/{city}_transitdb")
-
-    metadata_obj = MetaData()
-
-    # schemas will need to be parameterized to accept other cities transit lines, etc..
-    # for now, we will leave this hard coded for chicago
-    # TODO: implement a schema file that can easily be parameterized, and find a way to
-    #       blow up column definitions based on above schema
-
-    station_id_map = Table(
-        "station_id_map",
-        metadata_obj,
-        Column("station_name", String),
-        Column("station_descriptive_name", String),
-        Column("station_id", Integer, primary_key=True),
     )
 
-    rider_data = Table(
-        "rider_data",
-        metadata_obj,
-        Column("station_id", Integer, primary_key=True),
-        Column("station_name", String, ForeignKey("station_id_map.station_name"), nullable=False),
-        Column("date", Date),
-        Column("rides", Integer),
+    columns = [
+        Column(
+            column_name,
+            info["type"],
+            *info["params"]["args"],
+            **info["params"]["kwargs"],
+        )
+        for column_name, info in schema.items()
+    ]
+
+    table = Table(
+        table_name,
+        metadata,
+        *columns,
     )
 
-    station_order = Table(
-        "station_order",
-        metadata_obj,
-        Column("red", Integer),
-        Column("blue", Integer),
-        Column("green1", Integer),
-        Column("green2", Integer),
-        Column("brown", Integer),
-        Column("purple", Integer),
-        Column("purple_exp", Integer),
-        Column("yellow", Integer),
-        Column("pink", Integer),
-        Column("orange", Integer),
-    )
 
-    stations = Table(
-        "stations",
-        metadata_obj,
-        Column("stop_id", Integer, primary_key=True),
-        Column("direction_id", CHAR),
-        Column("station_name", String, ForeignKey("station_id_map.station_name"), nullable=False),
-        Column("station_descriptive_name", String),
-        Column("map_id", Integer),
-        Column("ada", Integer),
-        Column("red", Boolean),
-        Column("blue", Boolean),
-        Column("green", Boolean),
-        Column("brown", Boolean),
-        Column("purple", Boolean),
-        Column("purple_exp", Boolean),
-        Column("yellow", Boolean),
-        Column("pink", Boolean),
-        Column("orange", Boolean),
-        Column("location", Geometry('POINT')),
-    )
+def fill_table(city, metadata, table_name, schema):
+    from numpy import genfromtxt
+    from sqlalchemy.orm import sessionmaker
 
-    # conditional to select relevant data and add tables to dataset in db
 
