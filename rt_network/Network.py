@@ -60,7 +60,7 @@ class Network:
 
         # TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
 
-        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/cta/pt_rider_data.csv")
+        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/rail_station_orders/pt_rider_data.csv")
         # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
         #
 

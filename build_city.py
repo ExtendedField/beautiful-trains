@@ -7,7 +7,7 @@ from data.schemas import schemas
 
 import pickle
 import argparse
-from utils import get_data, read_city_json, build_table
+from utils import add_to_db, read_city_json, build_table
 from ast import literal_eval
 import numpy as np
 from sqlalchemy import (
@@ -26,33 +26,16 @@ args = parser.parse_args()
 city = args.city_name
 refresh = args.refresh
 
-# fetch relevant data
-stations_raw = get_data(city, "stations")
-station_id_map = (
-    get_data(city, "station_id_map")
-    .set_index("station_descriptive_name")
-    .drop(columns=["station_name"])
-)
-station_order = get_data(city, "station_order")
-daily_rail_boardings = get_data(
-    city, "pt_rider_data", order="date DESC", limit=1000
-)  # select most recent 1k entries to avoid API throttling
-lines = read_city_json(city, "./data/city_info.json")["lines"]
+city_info = read_city_json(city, "./data/city_info.json")
+table_info = city_info["tables"]
+# below block will expand as new apis are added
+if city_info["client_api"] == "socrata":
+    from sodapy import Socrata
+    client = Socrata(city_info["website"], city_info["token"])
+else:
+    raise Exception("Unknown client id. Please try another")
 
-# pre-process id mapping
-# below removes duplicate rows by flattening instances where different directions have different lines present
-# into one list of all lines available at the station. Also removes duplicate IDs by defaulting to the maximum id value
-group_funcs = {}
-for col in station_id_map.columns:
-    if col == "station_id":
-        group_funcs[col] = "max"
-    else:
-        group_funcs[col] = "sum"
-
-station_id_map = station_id_map.groupby(level=0).agg(group_funcs)
-station_id_map[lines] = station_id_map[lines].astype(bool)
-
-# load data into Postgre database
+# create and load data into Postgre database
 import subprocess
 
 # shell script creates the db with the name "{city}_transitdb" if it does not
@@ -61,17 +44,28 @@ import subprocess
 subprocess.run(["sh", "./setupdb.sh", city])
 
 transit_metadata = MetaData()
-passwd = "conductor"
+passwd = "conductor" # encrypt somewhere buddy...
 engine = create_engine(
     f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
 )
 
-for table_name, schema in schemas.items():
-    build_table(city, transit_metadata, table_name, schema)
-
-# tables are built above but are related to the metadata object, meaning we do not need to pass information
-# in or out of the function. It is sufficient to mutate the metadata object and move on, as with an "append()" call.
+tables = [build_table(transit_metadata, table_name, schema) for table_name, schema in schemas.items()]
 transit_metadata.create_all(engine)
+for table in tables:
+    add_to_db(city, table, engine, client, table_id=table_info["remote_table_id"], local_dir=table_info["local_dir"])
+
+# pre-process id mapping
+# below removes duplicate rows by flattening instances where different directions have different lines present
+# into one list of all lines available at the station. Also removes duplicate IDs by defaulting to the maximum id value
+group_funcs = {}
+for col in datasets["station_id_map"].columns:
+    if col == "station_id":
+        group_funcs[col] = "max"
+    else:
+        group_funcs[col] = "sum"
+
+station_id_map = station_id_map.groupby(level=0).agg(group_funcs)
+station_id_map[city_info["lines"]] = station_id_map[city_info["lines"]].astype(bool)
 
 # build network object
 # get list of stations
@@ -84,7 +78,7 @@ for stop in station_id_map.index.unique():
     raw_location = literal_eval(curr_stop.location)
     location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
 
-    line_labels = curr_stop[lines]
+    line_labels = curr_stop[city_info["lines"]]
     available_lines = line_labels.index[
         np.nonzero(line_labels)
     ]  # all lines a passenger will find at this station
