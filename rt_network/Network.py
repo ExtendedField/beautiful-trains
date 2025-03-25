@@ -24,15 +24,23 @@ class Network:
         self.city = city
         self.lines = lines
         unpacked_stations = [line.stations for line in lines]
-        self.stations = {station for station_set in unpacked_stations for station in station_set}
+        self.stations = {
+            station for station_set in unpacked_stations for station in station_set
+        }
         unpacked_connections = [line.connections for line in lines]
-        self.connections = {connections for connections_set in unpacked_connections for connections in connections_set}
+        self.connections = {
+            connections
+            for connections_set in unpacked_connections
+            for connections in connections_set
+        }
 
         # build matrix from lines list
         network_ids = [station.network_id for station in self.stations]
         adj_matrix = pd.DataFrame(0, columns=network_ids, index=network_ids)
         for connection in self.connections:
-            adj_matrix.loc[connection.station1.network_id, connection.station2.network_id] = 1
+            adj_matrix.loc[
+                connection.station1.network_id, connection.station2.network_id
+            ] = 1
         self.matrix = adj_matrix
 
         # create graph object
@@ -42,13 +50,15 @@ class Network:
             graph = nx.compose(graph, lg)
         self.graph = graph
 
-        #generate network stats
+        # generate network stats
         self.cluster_coef_list = list(nx.clustering(self.graph).values())
-        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(self.cluster_coef_list)
+        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(
+            self.cluster_coef_list
+        )
         self.avg_path_len = nx.average_shortest_path_length(self.graph)
         self.degree_dist = nx.degree_histogram(self.graph)
 
-        #TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+        # TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
 
         # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/cta/pt_rider_data.csv")
         # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
@@ -67,10 +77,15 @@ class Network:
         print("Fetching average path lengths for all possible new connections...")
         # TODO: implement inline loading tracker here. How hard could it be...
         net_complement = nx.complement(self.graph)
-        potential_new_connections = [edge for edge in net_complement.edges if
-                                     edge[0].lines.all() == edge[1].lines.all()]
-        path_lengths = pd.DataFrame(index=pd.MultiIndex.from_tuples(potential_new_connections),
-                                    columns=["connection_name", "avg_path_length"])
+        potential_new_connections = [
+            edge
+            for edge in net_complement.edges
+            if edge[0].lines.all() == edge[1].lines.all()
+        ]
+        path_lengths = pd.DataFrame(
+            index=pd.MultiIndex.from_tuples(potential_new_connections),
+            columns=["connection_name", "avg_path_length"],
+        )
         for connection in potential_new_connections:
             new_path_length = get_path_length(self.graph, connection)
             readable_name = f"{connection[0].name} to {connection[1].name}"
@@ -103,10 +118,12 @@ class Network:
             edge_y.append(None)
 
         edge_trace = go.Scatter(
-            x=edge_x, y=edge_y,
-            line=dict(width=0.5, color='#888'),
-            hoverinfo='none',
-            mode='lines')
+            x=edge_x,
+            y=edge_y,
+            line=dict(width=0.5, color="#888"),
+            hoverinfo="none",
+            mode="lines",
+        )
 
         node_x = []
         node_y = []
@@ -120,28 +137,28 @@ class Network:
             node_text.append(f"Name: {node.name}\nID: {node.network_id}")
 
         node_trace = go.Scatter(
-            x=node_x, y=node_y,
-            mode='markers',
-            hoverinfo='text',
+            x=node_x,
+            y=node_y,
+            mode="markers",
+            hoverinfo="text",
             marker=dict(
                 showscale=True,
                 # colorscale options
                 # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
                 # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
                 # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-                colorscale='Greens',
+                colorscale="Greens",
                 reversescale=True,
                 color=[],
                 size=10,
                 colorbar=dict(
                     thickness=15,
-                    title=dict(
-                        text='Node Connections',
-                        side='right'
-                    ),
-                    xanchor='left',
+                    title=dict(text="Node Connections", side="right"),
+                    xanchor="left",
                 ),
-                line_width=2))
+                line_width=2,
+            ),
+        )
 
         node_adjacencies = []
         for node, adjacencies in enumerate(g.adjacency()):
@@ -150,27 +167,29 @@ class Network:
         node_trace.marker.color = node_adjacencies
         node_trace.text = node_text
 
-        fig = go.Figure(data=[edge_trace, node_trace],
-                        layout=go.Layout(
-                            title=dict(
-                                text="<br>Network graph made with Python",
-                                font=dict(
-                                    size=16
-                                )
-                            ),
-                            showlegend=False,
-                            hovermode='closest',
-                            margin=dict(b=20, l=5, r=5, t=40),
-                            annotations=[dict(
-                                text=f"Map of {self.city}'s rapid transit network",
-                                showarrow=False,
-                                xref="paper", yref="paper",
-                                x=0.005, y=-0.002)],
-                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
-                        )
+        fig = go.Figure(
+            data=[edge_trace, node_trace],
+            layout=go.Layout(
+                title=dict(
+                    text="<br>Network graph made with Python", font=dict(size=16)
+                ),
+                showlegend=False,
+                hovermode="closest",
+                margin=dict(b=20, l=5, r=5, t=40),
+                annotations=[
+                    dict(
+                        text=f"Map of {self.city}'s rapid transit network",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.005,
+                        y=-0.002,
+                    )
+                ],
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            ),
+        )
         fig.show()
-
-
 
     # create functions to return network stats that are of interest

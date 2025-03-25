@@ -16,8 +16,10 @@ from sqlalchemy import (
 )
 
 # pass in city
-parser = argparse.ArgumentParser(prog='RT Network Generator',
-                                 description="Generates network structure for a city's rapid transit network")
+parser = argparse.ArgumentParser(
+    prog="RT Network Generator",
+    description="Generates network structure for a city's rapid transit network",
+)
 parser.add_argument("city_name")
 parser.add_argument("-r", "--refresh", type=bool)
 args = parser.parse_args()
@@ -26,9 +28,15 @@ refresh = args.refresh
 
 # fetch relevant data
 stations_raw = get_data(city, "stations")
-station_id_map = get_data(city, "station_id_map").set_index("station_descriptive_name").drop(columns=["station_name"])
+station_id_map = (
+    get_data(city, "station_id_map")
+    .set_index("station_descriptive_name")
+    .drop(columns=["station_name"])
+)
 station_order = get_data(city, "station_order")
-daily_rail_boardings = get_data(city, "pt_rider_data", order="date DESC", limit=1000) # select most recent 1k entries to avoid API throttling
+daily_rail_boardings = get_data(
+    city, "pt_rider_data", order="date DESC", limit=1000
+)  # select most recent 1k entries to avoid API throttling
 lines = read_city_json(city, "./data/city_info.json")["lines"]
 
 # pre-process id mapping
@@ -46,14 +54,17 @@ station_id_map[lines] = station_id_map[lines].astype(bool)
 
 # load data into Postgre database
 import subprocess
+
 # shell script creates the db with the name "{city}_transitdb" if it does not
 # already exist. It also creates a user role called "transitdb_user" if it
 # does not already exist
-subprocess.run(['sh', './setupdb.sh', city])
+subprocess.run(["sh", "./setupdb.sh", city])
 
 transit_metadata = MetaData()
 passwd = "conductor"
-engine = create_engine(f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb")
+engine = create_engine(
+    f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
+)
 
 for table_name, schema in schemas.items():
     build_table(city, transit_metadata, table_name, schema)
@@ -67,25 +78,35 @@ transit_metadata.create_all(engine)
 stations = set()
 for stop in station_id_map.index.unique():
     curr_stop = stations_raw[stations_raw["station_descriptive_name"] == stop].iloc[0]
-    net_id = int(station_id_map.loc[stop,"station_id"])
+    net_id = int(station_id_map.loc[stop, "station_id"])
     # this order was chose to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     raw_location = literal_eval(curr_stop.location)
-    location = (float(raw_location['longitude']), float(raw_location['latitude']))
+    location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
 
     line_labels = curr_stop[lines]
-    available_lines = line_labels.index[np.nonzero(line_labels)]  # all lines a passenger will find at this station
+    available_lines = line_labels.index[
+        np.nonzero(line_labels)
+    ]  # all lines a passenger will find at this station
     stations.add(Station(net_id, stop, location, available_lines))
 
 # build lines
 # create list of connections for each line
 line_objects = set()
-for line in station_order.columns: # cant use "lines" here because the lines may have different names
+for (
+    line
+) in (
+    station_order.columns
+):  # cant use "lines" here because the lines may have different names
     id_list = [iden for iden in list(station_order.T.loc[line]) if str(iden) != "nan"]
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
-        station1 = {station for station in stations if station.network_id == station_id}.pop()
-        station2 = {station for station in stations if station.network_id == id_list[ind+1]}.pop()
+        station1 = {
+            station for station in stations if station.network_id == station_id
+        }.pop()
+        station2 = {
+            station for station in stations if station.network_id == id_list[ind + 1]
+        }.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {station for station in stations if line in station.lines}
     line_objects.add(Line(stations_in_line, connections, weighted=True))

@@ -118,5 +118,3 @@ def build_table(metadata, table_name, schema):
 def fill_table(city, metadata, table_name, schema):
     from numpy import genfromtxt
     from sqlalchemy.orm import sessionmaker
-
-
