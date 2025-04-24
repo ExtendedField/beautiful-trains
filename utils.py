@@ -21,6 +21,8 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
             raise Exception("Unable to fetch data. Check table key in city_info.json")
     elif source_csv:
         data = pd.read_csv(f"data/{source_csv}")
+        if table.name == "station_order":
+            data["order"] = data["order"].str.split(",")
         data = [row.to_dict() for i, row in data.iterrows()] # convert to list of dicts
     else:
         print("No table_id or source_csv given. Data not added.")
@@ -31,10 +33,6 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
 
     print(f"Saving data to table: {table_name}")
     with engine.connect() as conn:
-        print(len(table.primary_key)) # you are solving the wrong problem
-        # the station order table is causing issues. it has no primary key meaning duplicate rows can be entered
-        # likely the best solution is to use the line names as a primary key and then have a single "order" column
-        # which has a list of the stops with a varying length. this way, there is a fixed schema and primary key
         if refresh:
             query = delete(table)
             conn.execute(query)

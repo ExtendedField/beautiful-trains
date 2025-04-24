@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     CHAR,
 )
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 # schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
 schemas = {
@@ -30,8 +31,8 @@ schemas = {
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
     "station_order": {
-        "line": {"type": String, "params": {"args": [], "kwargs": {}}},
-        "order": {"type": ARRAY, "params": {"args": [], "kwargs": {}}},
+        "line": {"type": String, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "order": {"type": ARRAY(Integer), "params": {"args": [], "kwargs": {}}},
     },
     "stations": {
         "stop_id": {
@@ -39,6 +40,7 @@ schemas = {
             "params": {"args": [], "kwargs": {"primary_key": True}},
         },
         "direction_id": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
+        "stop_name": {"type": String, "params": {"args": [], "kwargs": {}}},
         "station_name": {
             "type": String,
             "params": {
@@ -64,7 +66,7 @@ schemas = {
         "pink": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "orange": {"type": Boolean, "params": {"args": [], "kwargs": {}}},
         "location": {
-            "type": String,  # TODO: figure out how to make this a PostgreSQL "Point" type
+            "type": JSON,
             "params": {"args": [], "kwargs": {}},
         },
     },
