@@ -5,10 +5,11 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
     """
     If requested data does not exist in the database, this downloads it and adds it to the db
     """
-    from sqlalchemy import insert, delete
+    from sqlalchemy.dialects.postgresql import insert
+    from sqlalchemy import delete
     table_name = table.name
 
-    if not source_csv:
+    if table_id:
         print(f"Fetching table_id: {table_id}\nWriting to table: {city}_transitdb.{table_name}")
         try:
             # this syntax may be different with other client APIs. May have to parameterize
@@ -18,20 +19,27 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
         except:
             # maybe make this more informative
             raise Exception("Unable to fetch data. Check table key in city_info.json")
+    elif source_csv:
+        data = pd.read_csv(f"data/{source_csv}")
+        data = [row.to_dict() for i, row in data.iterrows()] # convert to list of dicts
     else:
-        data = pd.read_csv(source_csv)
+        print("No table_id or source_csv given. Data not added.")
+        return
 
     import numpy as np
     data = np.array(data)
 
     print(f"Saving data to table: {table_name}")
     with engine.connect() as conn:
+        print(len(table.primary_key)) # you are solving the wrong problem
+        # the station order table is causing issues. it has no primary key meaning duplicate rows can be entered
+        # likely the best solution is to use the line names as a primary key and then have a single "order" column
+        # which has a list of the stops with a varying length. this way, there is a fixed schema and primary key
         if refresh:
             query = delete(table)
             conn.execute(query)
         for row in data:
-            print(tuple(row.values()))
-            query = insert(table).values(tuple(row.values()))
+            query = insert(table).on_conflict_do_update(table.primary_key, set_=table.c).values(tuple(row.values()))
             conn.execute(query)
         conn.commit()
     # TODO: x. Write code here to write the data directly to the database, and reorder build_city.py to build the db first.
@@ -87,7 +95,6 @@ def build_table(metadata, table_name, schema):
         )
         for column_name, info in schema.items()
     ]
-    print(f"Table list:\n{metadata.tables}")
 
     table = Table(
         table_name,

@@ -1,7 +1,7 @@
 # contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
 
 from sqlalchemy import (
-    ForeignKey,
+#    ForeignKey,
     Integer,
     String,
     Date,
@@ -25,21 +25,13 @@ schemas = {
                 },
             },
         },
-        "date": {"type": Date, "params": {"args": [], "kwargs": {}}},
+        "date": {"type": Date, "params": {"args": [], "kwargs": {"primary_key": True}}},
         "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
     "station_order": {
-        "red": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "blue": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "green1": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "green2": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "brown": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "purple": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "purple_exp": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "yellow": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "pink": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-        "orange": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+        "line": {"type": String, "params": {"args": [], "kwargs": {}}},
+        "order": {"type": ARRAY, "params": {"args": [], "kwargs": {}}},
     },
     "stations": {
         "stop_id": {
