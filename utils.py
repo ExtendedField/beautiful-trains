@@ -40,10 +40,6 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
             query = insert(table).on_conflict_do_update(table.primary_key, set_=table.c).values(tuple(row.values()))
             conn.execute(query)
         conn.commit()
-    # TODO: x. Write code here to write the data directly to the database, and reorder build_city.py to build the db first.
-    #       2. Redo station order with proper ids, and refactor code to account for this
-    #       3. Save no local csvs and remove them from your project.
-
 
 def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
