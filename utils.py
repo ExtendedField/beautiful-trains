@@ -20,7 +20,8 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
             # maybe make this more informative
             raise Exception("Unable to fetch data. Check table key in city_info.json")
     elif source_csv:
-        data = pd.read_csv(f"data/{source_csv}")
+        path = f"data/{source_csv}"
+        data = pd.read_csv(path)
         if table.name == "station_order":
             data["order"] = data["order"].str.split(",")
         data = [row.to_dict() for i, row in data.iterrows()] # convert to list of dicts
@@ -37,7 +38,10 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
             query = delete(table)
             conn.execute(query)
         for row in data:
-            query = insert(table).on_conflict_do_update(table.primary_key, set_=table.c).values(tuple(row.values()))
+            # repackages data with specified schema names instead of schema defined by the transit org
+            renamed_row = dict(zip(table.c.keys(),row.values()))
+            query = insert(table).values(tuple(row.values())).on_conflict_do_update(index_elements=table.primary_key,
+                                                                                    set_=renamed_row)
             conn.execute(query)
         conn.commit()
 
