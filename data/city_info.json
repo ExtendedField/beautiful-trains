@@ -7,13 +7,13 @@
     "lines": [
       "red",
       "blue",
-      "g",
-      "brn",
-      "p",
-      "pexp",
-      "y",
-      "pnk",
-      "o"
+      "green",
+      "brown",
+      "purple",
+      "purple_exp",
+      "yellow",
+      "pink",
+      "orange"
     ],
     "tables": {
       "station_order": {

@@ -94,6 +94,9 @@ class Network:
 
         self.potential_connections = path_lengths
 
+    def __str__(self):
+        return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
+
     def plot(self, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
