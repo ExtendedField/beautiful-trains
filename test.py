@@ -1,6 +1,6 @@
 from utils import get_data, build_table
 from sqlalchemy import MetaData, create_engine
-from data.schemas import schemas
+from data.dbmetadata.schemas import schemas
 
 city = "chicago"
 

@@ -76,7 +76,6 @@ def project(lam, phi, proj="mercator", deg=True):
 
     return x, y
 
-
 def build_table(metadata, table_name, schema):
     # return: probably nothing but maybe the metadata object.
     from sqlalchemy import (

@@ -1,20 +1,17 @@
 # consider storing all these classes in on file since they are rather compact presently
+import pandas as pd
+
 from rt_network.Station import Station
 from rt_network.Connection import Connection
 from rt_network.Line import Line
 from rt_network.Network import Network
-from data.schemas import schemas
 
 import pickle
 import argparse
-from utils import add_to_db, read_city_json, build_table
+from utils import read_city_json
 from ast import literal_eval
 import numpy as np
-from sqlalchemy import (
-    create_engine,
-    MetaData,
-)
-from pprint import pprint
+from sqlalchemy import create_engine, select
 
 # pass in city
 parser = argparse.ArgumentParser(
@@ -28,44 +25,27 @@ city = args.city_name
 refresh = args.refresh
 
 city_info = read_city_json(city, "./data/city_info.json")
-table_info = city_info["tables"]
-# below block will expand as new apis are added
-if city_info["client_api"] == "socrata":
-    from sodapy import Socrata
-    client = Socrata(city_info["website"], city_info["token"])
-else:
-    raise Exception("Unknown client id. Please try another")
 
-# create and load data into Postgre database
-import subprocess
-
-# shell script creates the db with the name "{city}_transitdb" if it does not
-# already exist. It also creates a user role called "transitdb_user" if it
-# does not already exist
-subprocess.run(["sh", "./setupdb.sh", city])
-
-transit_metadata = MetaData()
 passwd = "conductor" # encrypt somewhere buddy...
 engine = create_engine(
     f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
 )
 
-tables = [build_table(transit_metadata, table_name, schema) for table_name, schema in schemas.items()]
-transit_metadata.create_all(engine)
-for table in tables:
-    table_id = city_info["tables"][table.name]["remote_table_id"]
-    local_dir = city_info["tables"][table.name]["local_dir"]
-    add_to_db(city, table, engine, client, table_id=table_id, source_csv=local_dir)
+# unpickle metadata object...
+filedir = f"data/dbmetadata/{city}db_metadata.pkl"
+with open(filedir, "rb") as f:
+    transit_metadata = pickle.load(f)
 
-# station_id_map = station_id_map.groupby(level=0).agg(group_funcs)
-# station_id_map[city_info["lines"]] = station_id_map[city_info["lines"]].astype(bool)
-#
+with engine.connect() as conn:
+    stations = pd.DataFrame(conn.execute(select(transit_metadata.tables["stations"])))
+    station_order = pd.DataFrame(conn.execute(select(transit_metadata.tables["station_order"])))
+
 # # build network object
 # # get list of stations
-# stations = set()
-# for stop in station_id_map.index.unique():
-#     curr_stop = stations_raw[stations_raw["station_descriptive_name"] == stop].iloc[0]
-#     net_id = int(station_id_map.loc[stop, "station_id"])
+# station_set = set()
+# for stop in stations:
+#     curr_stop = stations[stations["station_descriptive_name"] == stop].iloc[0]
+#     net_id = stations.map_id
 #     # this order was chose to mirror the "x/y" coordinate convention typically used in mathematics
 #     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
 #     raw_location = literal_eval(curr_stop.location)
@@ -75,7 +55,7 @@ for table in tables:
 #     available_lines = line_labels.index[
 #         np.nonzero(line_labels)
 #     ]  # all lines a passenger will find at this station
-#     stations.add(Station(net_id, stop, location, available_lines))
+#     station_set.add(Station(net_id, stop, location, available_lines))
 #
 # # build lines
 # # create list of connections for each line
