@@ -1,63 +1,49 @@
 import pandas as pd
-import os
 import json
 
-
-def get_data(city, dataset, refresh=False, **query_params) -> pd.DataFrame:
+def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refresh=False, **query_params):
     """
-    Checks if data is present locally. If it is, the data is returned. If it is not, the data
-    is downloaded, written to the expected directory, and then returned. If refresh=True, the data
-    is downloaded by force.
+    If requested data does not exist in the database, this downloads it and adds it to the db
     """
+    from sqlalchemy.dialects.postgresql import insert
+    from sqlalchemy import delete
+    table_name = table.name
 
-    # Loads json info for requested city, initialized the relevant client, and extracts
-    # information needed to locate or download the data as necessary.
-    json_dir = "./data/city_info.json"
-    city_info = read_city_json(city, json_dir)
-    table_dir = city_info["local_dir"] + dataset + ".csv"
-    dataset_id = city_info["datasets"][dataset]
-
-    # absolute directory is likely necessary unfortunately due to the fact that this method
-    # can be called from other directories. If I think of a better way to do this, I will
-    # update the code.
-    output_dir = "~/project_repos/beautiful-trains/data/" + table_dir
-    # Attempt to locate data locally and return it.
-    if (not refresh) & (table_dir is not None):
+    if table_id:
+        print(f"Fetching table_id: {table_id}\nWriting to table: {city}_transitdb.{table_name}")
         try:
-            print(f"Data found at: {output_dir}\nReturning table...")
-            return pd.read_csv(output_dir)
-        except FileNotFoundError:
-            print(f"Data not found at directory: {output_dir}. Downloading...")
-
-    print(f"Fetching table_id: {dataset_id}\nWriting to Directory: {output_dir}")
-    if city_info["client_api"] == "socrata":
-        from sodapy import Socrata
-
-        client = Socrata(city_info["website"], city_info["token"])
+            # this syntax may be different with other client APIs. May have to parameterize
+            # or use a more generic HTTP request package.
+            data = client.get(table_id, **query_params)
+            print("Data Downloaded.")
+        except:
+            # maybe make this more informative
+            raise Exception("Unable to fetch data. Check table key in city_info.json")
+    elif source_csv:
+        path = f"data/{source_csv}"
+        data = pd.read_csv(path)
+        if table.name == "station_order":
+            data["order"] = data["order"].str.split(",")
+        data = [row.to_dict() for i, row in data.iterrows()] # convert to list of dicts
     else:
-        raise Exception("Unknown client id. Please try another")
+        print("No table_id or source_csv given. Data not added.")
+        return
 
-    try:
-        # this syntax may be different with other client APIs. May have to parameterize
-        # or use a more generic HTTP request package.
-        results = client.get(dataset_id, **query_params)
-        print("Data Downloaded.")
-    except:
-        # maybe make this more informative
-        raise Exception("Unable to fetch data. Check table key in city_info.json")
+    import numpy as np
+    data = np.array(data)
 
-    print(f"Saving data to: {output_dir}")
-    list_dir = output_dir.split("/")
-    table_target_dir = "/".join(list_dir[:-1]) + "/"
-    if not os.path.exists(table_target_dir):
-        os.makedirs(table_target_dir)
-    data = pd.DataFrame.from_records(results)
-    data.to_csv(output_dir)
-    # TODO: 1. Write code here to write the data directly to the database, and reorder build_city.py to build the db first.
-    #       2. Redo station order with proper ids, and refactor code to account for this
-    #       3. Save no local csvs and remove them from your project.
-    return data
-
+    print(f"Saving data to table: {table_name}")
+    with engine.connect() as conn:
+        if refresh:
+            query = delete(table)
+            conn.execute(query)
+        for row in data:
+            # repackages data with specified schema names instead of schema defined by the transit org
+            renamed_row = dict(zip(table.c.keys(),row.values()))
+            query = insert(table).values(tuple(row.values())).on_conflict_do_update(index_elements=table.primary_key,
+                                                                                    set_=renamed_row)
+            conn.execute(query)
+        conn.commit()
 
 def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
@@ -90,7 +76,6 @@ def project(lam, phi, proj="mercator", deg=True):
 
     return x, y
 
-
 def build_table(metadata, table_name, schema):
     # return: probably nothing but maybe the metadata object.
     from sqlalchemy import (
@@ -114,7 +99,4 @@ def build_table(metadata, table_name, schema):
         *columns,
     )
 
-
-def fill_table(city, metadata, table_name, schema):
-    from numpy import genfromtxt
-    from sqlalchemy.orm import sessionmaker
+    return table

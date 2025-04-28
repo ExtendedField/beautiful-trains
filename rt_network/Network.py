@@ -60,7 +60,7 @@ class Network:
 
         # TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
 
-        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/cta/pt_rider_data.csv")
+        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/rail_station_orders/pt_rider_data.csv")
         # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
         #
 
@@ -93,6 +93,9 @@ class Network:
             path_lengths.loc[connection, "avg_path_length"] = new_path_length
 
         self.potential_connections = path_lengths
+
+    def __str__(self):
+        return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
     def plot(self, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""

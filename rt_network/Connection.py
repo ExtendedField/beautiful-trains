@@ -6,6 +6,9 @@ class Connection:
         self.station1 = station1
         self.station2 = station2
 
+    def __str__(self):
+        return f"{self.station1.name}<->{self.station2.name}"
+
     def distance(self):
         from numpy import sqrt
 

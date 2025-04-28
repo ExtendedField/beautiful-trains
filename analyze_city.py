@@ -22,7 +22,7 @@ print(f"Clustering Coefficient: {rt_network.glob_cluster_coef}")
 print(f"Average Path Length: {rt_network.avg_path_len}")
 print(f"Degree Distribution: {rt_network.degree_dist}\n")
 
-# daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/cta/pt_rider_data.csv")
+# daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/rail_station_orders/pt_rider_data.csv")
 # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
 # print(avg_boardings.head(50))
 
