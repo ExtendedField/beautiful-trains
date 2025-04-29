@@ -7,14 +7,18 @@ class Network:
     graph = None
     cluster_coef_list = None
     glob_cluster_coef = None
-    wghtd_avg_path_len = None
     degree_dist = None
+    wghtd_avg_path_len = None
     potential_connections = None
 
     def __init__(self, city=None, lines=None):
 
         import pandas as pd
         import networkx as nx
+        from sqlalchemy import create_engine, select, func
+        import pickle
+        from statistics import mean
+        from tqdm import tqdm
 
         if lines is None:
             lines = set()
@@ -58,41 +62,59 @@ class Network:
         self.avg_path_len = nx.average_shortest_path_length(self.graph)
         self.degree_dist = nx.degree_histogram(self.graph)
 
-        # TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-
-        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/rail_station_orders/pt_rider_data.csv")
-        # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
-        #
-
-        # create a function that adds a connection and checks the new average path length
-        def get_path_length(g, edge):
+        # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+        def get_weighted_path(g, edge, boardings):
+            # this ideally would be drastically more efficient.
+            total_boardings = boardings.avg_rides.sum()
             improved_g = g.copy()
             station1, station2 = edge
             improved_g.add_edge(station1, station2)
-            avg_path_length = nx.average_shortest_path_length(improved_g)
+            path_weights = []
+            for source_node in improved_g:
+                avg_daily_boardings = boardings.loc[int(source_node.network_id), "avg_rides"]
+                avg_path_length = mean([nx.shortest_path_length(improved_g, source_node, target_node)
+                                   for target_node in improved_g])
+                path_weights.append(float(avg_path_length)*float(avg_daily_boardings)/float(total_boardings))
             improved_g.remove_edge(station1, station2)
-            return avg_path_length
+            return sum(path_weights)/len(path_weights)
+
+        passwd = "conductor"  # encrypt somewhere buddy...
+        engine = create_engine(
+            f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
+        )
+
+        # unpickle metadata object...
+        filedir = f"data/dbmetadata/{city}db_metadata.pkl"
+        with open(filedir, "rb") as f:
+            transit_metadata = pickle.load(f)
+
+        with engine.connect() as conn:
+            rider_data = transit_metadata.tables["rider_data"]
+            avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
+            query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
+            daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
 
         # create a list of all connections that do not exist in graph (between lines only)
-        print("Fetching average path lengths for all possible new connections...")
+        print("Fetching weighted average path lengths for all possible new connections...")
         # TODO: implement inline loading tracker here. How hard could it be...
         net_complement = nx.complement(self.graph)
         potential_new_connections = [
             edge
             for edge in net_complement.edges
-            if edge[0].lines.all() == edge[1].lines.all()
+            if list(edge[0].lines) != list(edge[1].lines)
         ]
         path_lengths = pd.DataFrame(
             index=pd.MultiIndex.from_tuples(potential_new_connections),
             columns=["connection_name", "avg_path_length"],
         )
-        for connection in potential_new_connections:
-            new_path_length = get_path_length(self.graph, connection)
+        for connection in tqdm(potential_new_connections):
+            new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
             readable_name = f"{connection[0].name} to {connection[1].name}"
             path_lengths.loc[connection, "connection_name"] = readable_name
-            path_lengths.loc[connection, "avg_path_length"] = new_path_length
+            path_lengths.loc[connection, "weighted_avg_path_length"] = new_path_length
 
         self.potential_connections = path_lengths
+        self.wghtd_avg_path_len = path_lengths.weighted_avg_path_length.mean()
 
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"

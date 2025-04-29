@@ -10,11 +10,19 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
     table_name = table.name
 
     if table_id:
-        print(f"Fetching table_id: {table_id}\nWriting to table: {city}_transitdb.{table_name}")
+        print(f"Fetching table_id: {table_id}")
         try:
             # this syntax may be different with other client APIs. May have to parameterize
             # or use a more generic HTTP request package.
-            data = client.get(table_id, **query_params)
+            import itertools
+            num_rows = int(client.get(table_id, query="select count(*)")[0]["count"]) # this is sure to break with other APIs
+            chunk_size = 999 # socrata only allows 1k rows per request.
+            num_chunks = round(num_rows/chunk_size) + 1
+            offsets = [chunk_size * x for x in range(num_chunks)]
+            data = client.get(table_id, offset=offsets[0], **query_params)
+            if len(offsets) > 1:
+                for offset in offsets: # add [-100:] to avoid throttling for now
+                    data.extend(client.get(table_id, offset=offset, **query_params))
             print("Data Downloaded.")
         except:
             # maybe make this more informative
@@ -28,7 +36,7 @@ def add_to_db(city, table, engine, client, table_id=None, source_csv=None, refre
     else:
         print("No table_id or source_csv given. Data not added.")
         return
-
+    print(f"Writing to table: {city}_transitdb.{table_name}")
     import numpy as np
     data = np.array(data)
 
