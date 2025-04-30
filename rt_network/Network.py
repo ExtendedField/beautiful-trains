@@ -18,6 +18,7 @@ class Network:
         from sqlalchemy import create_engine, select, func
         import pickle
         from statistics import mean
+        import numpy as np
         from tqdm import tqdm
 
         if lines is None:
@@ -65,18 +66,25 @@ class Network:
         # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
         def get_weighted_path(g, edge, boardings):
             # this ideally would be drastically more efficient.
-            total_boardings = boardings.avg_rides.sum()
             improved_g = g.copy()
+            nodes = list(improved_g) #[:5] # use to limit compute for testing
+            index = [node.network_id for node in nodes]
+            boardings = boardings[boardings.index.isin(index)]
+            total_boardings = float(boardings.avg_rides.sum())
             station1, station2 = edge
             improved_g.add_edge(station1, station2)
-            path_weights = []
-            for source_node in improved_g:
-                avg_daily_boardings = boardings.loc[int(source_node.network_id), "avg_rides"]
-                avg_path_length = mean([nx.shortest_path_length(improved_g, source_node, target_node)
-                                   for target_node in improved_g])
-                path_weights.append(float(avg_path_length)*float(avg_daily_boardings)/float(total_boardings))
-            improved_g.remove_edge(station1, station2)
-            return sum(path_weights)/len(path_weights)
+            path_lengths = pd.DataFrame(index=index, columns=index)
+            remaining_nodes = nodes
+            for source_node in nodes:
+                for target_node in remaining_nodes:
+                    path_lengths.loc[source_node.network_id, target_node.network_id] = nx.shortest_path_length(improved_g,
+                                                                                                               source_node,
+                                                                                                               target_node)
+                remaining_nodes.remove(source_node)
+
+            path_lengths = path_lengths.fillna(path_lengths.T).sort_index().sort_index(axis=1)
+            boardings = boardings.sort_values("station_id")
+            return (np.matmul(np.diag(boardings.to_numpy().flatten()).astype('float'), path_lengths).sum()/total_boardings).mean()
 
         passwd = "conductor"  # encrypt somewhere buddy...
         engine = create_engine(
@@ -103,18 +111,18 @@ class Network:
             for edge in net_complement.edges
             if list(edge[0].lines) != list(edge[1].lines)
         ]
-        path_lengths = pd.DataFrame(
+        wgtd_path_lengths = pd.DataFrame(
             index=pd.MultiIndex.from_tuples(potential_new_connections),
             columns=["connection_name", "avg_path_length"],
         )
         for connection in tqdm(potential_new_connections):
             new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
             readable_name = f"{connection[0].name} to {connection[1].name}"
-            path_lengths.loc[connection, "connection_name"] = readable_name
-            path_lengths.loc[connection, "weighted_avg_path_length"] = new_path_length
+            wgtd_path_lengths.loc[connection, "connection_name"] = readable_name
+            wgtd_path_lengths.loc[connection, "weighted_avg_path_length"] = new_path_length
 
-        self.potential_connections = path_lengths
-        self.wghtd_avg_path_len = path_lengths.weighted_avg_path_length.mean()
+        self.potential_connections = wgtd_path_lengths
+        self.wghtd_avg_path_len = wgtd_path_lengths.weighted_avg_path_length.mean()
 
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
