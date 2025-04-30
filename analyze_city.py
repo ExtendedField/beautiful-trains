@@ -30,7 +30,7 @@ print(f"Degree Distribution: {rt_network.degree_dist}\n")
 
 print(
     rt_network.potential_connections.sort_values(
-        by="avg_path_length", ascending=True
+        by="weighted_avg_path_length", ascending=True
     ).head(25)
 )  # .connection_name.values)
 

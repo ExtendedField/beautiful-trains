@@ -10,6 +10,7 @@ class Station:
 
     def __init__(self, net_id=None, name="", location=(0, 0), lines=None):
         from numpy import int64
+
         if lines is None:
             lines = []
 

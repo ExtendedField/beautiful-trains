@@ -1,7 +1,7 @@
 # contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
 
 from sqlalchemy import (
-#    ForeignKey,
+    #    ForeignKey,
     Integer,
     String,
     Date,
@@ -31,7 +31,10 @@ schemas = {
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
     "station_order": {
-        "line": {"type": String, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "line": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
         "order": {"type": ARRAY(Integer), "params": {"args": [], "kwargs": {}}},
     },
     "stations": {
