@@ -1,3 +1,6 @@
+from networkx.algorithms.shortest_paths.generic import shortest_path_length
+
+
 class Network:
     city = ""
     lines = set()
@@ -64,27 +67,19 @@ class Network:
 
         # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
         def get_weighted_path(g, edge, boardings):
-            # this ideally would be drastically more efficient.
+            # TODO: move anything that does not need to be every loop to outside function and pass it in.
             improved_g = g.copy()
-            nodes = list(improved_g)  # [:5] # use to limit compute for testing
-            index = [node.network_id for node in nodes]
+            nodes = list(improved_g)
+            index = sorted([node.network_id for node in nodes])
             boardings = boardings[boardings.index.isin(index)]
             total_boardings = float(boardings.avg_rides.sum())
+
             station1, station2 = edge
             improved_g.add_edge(station1, station2)
-            path_lengths = pd.DataFrame(index=index, columns=index)
-            remaining_nodes = nodes
-            for source_node in nodes:
-                for target_node in remaining_nodes:
-                    path_lengths.loc[source_node.network_id, target_node.network_id] = (
-                        nx.shortest_path_length(improved_g, source_node, target_node)
-                    )
-                remaining_nodes.remove(source_node)
-
-            path_lengths = (
-                path_lengths.fillna(path_lengths.T).sort_index().sort_index(axis=1)
-            )
-            boardings = boardings.sort_values("station_id")
+            path_lengths = pd.DataFrame(dict(shortest_path_length(improved_g)))
+            path_lengths.index = [i.network_id for i in path_lengths.index]
+            path_lengths.columns = [i.network_id for i in path_lengths.columns]
+            path_lengths = path_lengths.sort_index().sort_index(axis=1)
             return (
                 np.matmul(
                     np.diag(boardings.to_numpy().flatten()).astype("float"),
@@ -119,7 +114,7 @@ class Network:
         potential_new_connections = [
             edge
             for edge in net_complement.edges
-            if list(edge[0].lines) != list(edge[1].lines)
+            if len(set(edge[0].lines) & set(edge[1].lines)) == 0
         ]
         wgtd_path_lengths = pd.DataFrame(
             index=pd.MultiIndex.from_tuples(potential_new_connections),
@@ -139,7 +134,7 @@ class Network:
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
-    def plot(self, proj="mercator") -> None:
+    def plot(self, show_new_conn=False, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -213,7 +208,6 @@ class Network:
         node_trace.text = node_text
 
         fig = go.Figure(
-            data=[edge_trace, node_trace],
             layout=go.Layout(
                 title=dict(
                     text="<br>Network graph made with Python", font=dict(size=16)
@@ -235,6 +229,31 @@ class Network:
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
             ),
         )
+        if show_new_conn:
+            top_ten = self.potential_connections.sort_values(by="weighted_avg_path_length", ascending=True).head(15).index
+            for edge in top_ten:
+                lam0 = edge[0].long()
+                phi0 = edge[0].lat()
+                x0, y0 = project(lam0, phi0, proj)
+                lam1 = edge[1].long()
+                phi1 = edge[1].lat()
+                x1, y1 = project(lam1, phi1, proj)
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+            new_edge_trace = go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=0.5, color="#ff0000"),
+                hoverinfo="none",
+                mode="lines",
+            )
+            fig.add_trace(new_edge_trace)
+        fig.add_trace(node_trace)
+        fig.add_trace(edge_trace)
         fig.show()
 
     # create functions to return network stats that are of interest

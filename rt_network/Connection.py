@@ -2,7 +2,7 @@ class Connection:
     station1 = None
     station2 = None
 
-    def __init__(self, station1=None, station2=None):
+    def __init__(self, station1=None, station2=None, exists=False):
         self.station1 = station1
         self.station2 = station2
 
