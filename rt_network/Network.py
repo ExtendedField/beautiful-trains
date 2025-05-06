@@ -1,3 +1,6 @@
+from networkx.algorithms.shortest_paths.generic import shortest_path_length
+
+
 class Network:
     city = ""
     lines = set()
@@ -7,14 +10,18 @@ class Network:
     graph = None
     cluster_coef_list = None
     glob_cluster_coef = None
-    wghtd_avg_path_len = None
     degree_dist = None
+    wghtd_avg_path_len = None
     potential_connections = None
 
     def __init__(self, city=None, lines=None):
 
         import pandas as pd
         import networkx as nx
+        from sqlalchemy import create_engine, select, func
+        import pickle
+        import numpy as np
+        from tqdm import tqdm
 
         if lines is None:
             lines = set()
@@ -58,46 +65,76 @@ class Network:
         self.avg_path_len = nx.average_shortest_path_length(self.graph)
         self.degree_dist = nx.degree_histogram(self.graph)
 
-        # TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-
-        # daily_rail_boardings = pd.read_csv("~/project_repos/beautiful-trains/data/rail_station_orders/pt_rider_data.csv")
-        # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
-        #
-
-        # create a function that adds a connection and checks the new average path length
-        def get_path_length(g, edge):
+        # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+        def get_weighted_path(g, edge, boardings):
+            # TODO: move anything that does not need to be every loop to outside function and pass it in.
             improved_g = g.copy()
+            nodes = list(improved_g)
+            index = sorted([node.network_id for node in nodes])
+            boardings = boardings[boardings.index.isin(index)]
+            total_boardings = float(boardings.avg_rides.sum())
+
             station1, station2 = edge
             improved_g.add_edge(station1, station2)
-            avg_path_length = nx.average_shortest_path_length(improved_g)
-            improved_g.remove_edge(station1, station2)
-            return avg_path_length
+            path_lengths = pd.DataFrame(dict(shortest_path_length(improved_g)))
+            path_lengths.index = [i.network_id for i in path_lengths.index]
+            path_lengths.columns = [i.network_id for i in path_lengths.columns]
+            path_lengths = path_lengths.sort_index().sort_index(axis=1)
+            return (
+                np.matmul(
+                    np.diag(boardings.to_numpy().flatten()).astype("float"),
+                    path_lengths,
+                ).sum()
+                / total_boardings
+            ).mean()
+
+        passwd = "conductor"  # encrypt somewhere buddy...
+        engine = create_engine(
+            f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
+        )
+
+        # unpickle metadata object...
+        filedir = f"data/dbmetadata/{city}db_metadata.pkl"
+        with open(filedir, "rb") as f:
+            transit_metadata = pickle.load(f)
+
+        with engine.connect() as conn:
+            rider_data = transit_metadata.tables["rider_data"]
+            avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
+            query = select(rider_data.c.station_id, avg_rides).group_by(
+                rider_data.c.station_id
+            )
+            daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
 
         # create a list of all connections that do not exist in graph (between lines only)
-        print("Fetching average path lengths for all possible new connections...")
-        # TODO: implement inline loading tracker here. How hard could it be...
+        print(
+            "Fetching weighted average path lengths for all possible new connections..."
+        )
         net_complement = nx.complement(self.graph)
         potential_new_connections = [
             edge
             for edge in net_complement.edges
-            if edge[0].lines.all() == edge[1].lines.all()
+            if len(set(edge[0].lines) & set(edge[1].lines)) == 0
         ]
-        path_lengths = pd.DataFrame(
+        wgtd_path_lengths = pd.DataFrame(
             index=pd.MultiIndex.from_tuples(potential_new_connections),
-            columns=["connection_name", "avg_path_length"],
+            columns=["connection_name", "weighted_avg_path_length"],
         )
-        for connection in potential_new_connections:
-            new_path_length = get_path_length(self.graph, connection)
+        for connection in tqdm(potential_new_connections):
+            new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
             readable_name = f"{connection[0].name} to {connection[1].name}"
-            path_lengths.loc[connection, "connection_name"] = readable_name
-            path_lengths.loc[connection, "avg_path_length"] = new_path_length
+            wgtd_path_lengths.loc[connection, "connection_name"] = readable_name
+            wgtd_path_lengths.loc[connection, "weighted_avg_path_length"] = (
+                new_path_length
+            )
 
-        self.potential_connections = path_lengths
+        self.potential_connections = wgtd_path_lengths
+        self.wghtd_avg_path_len = wgtd_path_lengths.weighted_avg_path_length.mean()
 
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
-    def plot(self, proj="mercator") -> None:
+    def plot(self, show_new_conn=False, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -171,7 +208,6 @@ class Network:
         node_trace.text = node_text
 
         fig = go.Figure(
-            data=[edge_trace, node_trace],
             layout=go.Layout(
                 title=dict(
                     text="<br>Network graph made with Python", font=dict(size=16)
@@ -193,6 +229,31 @@ class Network:
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
             ),
         )
+        if show_new_conn:
+            top_ten = self.potential_connections.sort_values(by="weighted_avg_path_length", ascending=True).head(15).index
+            for edge in top_ten:
+                lam0 = edge[0].long()
+                phi0 = edge[0].lat()
+                x0, y0 = project(lam0, phi0, proj)
+                lam1 = edge[1].long()
+                phi1 = edge[1].lat()
+                x1, y1 = project(lam1, phi1, proj)
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+            new_edge_trace = go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=0.5, color="#ff0000"),
+                hoverinfo="none",
+                mode="lines",
+            )
+            fig.add_trace(new_edge_trace)
+        fig.add_trace(node_trace)
+        fig.add_trace(edge_trace)
         fig.show()
 
     # create functions to return network stats that are of interest

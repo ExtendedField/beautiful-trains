@@ -23,6 +23,7 @@ table_info = city_info["tables"]
 # below block will expand as new apis are added
 if city_info["client_api"] == "socrata":
     from sodapy import Socrata
+
     client = Socrata(city_info["website"], city_info["token"])
 else:
     raise Exception("Unknown client id. Please try another")
@@ -36,12 +37,15 @@ import subprocess
 subprocess.run(["sh", "./setupdb.sh", city])
 
 transit_metadata = MetaData()
-passwd = "conductor" # encrypt somewhere buddy...
+passwd = "conductor"  # encrypt somewhere buddy...
 engine = create_engine(
     f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
 )
 
-tables = [build_table(transit_metadata, table_name, schema) for table_name, schema in schemas.items()]
+tables = [
+    build_table(transit_metadata, table_name, schema)
+    for table_name, schema in schemas.items()
+]
 transit_metadata.create_all(engine)
 for table in tables:
     table_id = city_info["tables"][table.name]["remote_table_id"]

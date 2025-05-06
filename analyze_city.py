@@ -26,13 +26,13 @@ print(f"Degree Distribution: {rt_network.degree_dist}\n")
 # avg_boardings = daily_rail_boardings[["station_id", "stationname", "rides"]].groupby(by=["station_id", "stationname"]).mean()
 # print(avg_boardings.head(50))
 
-# rt_network.plot()
+rt_network.plot(show_new_conn=True)
 
-print(
-    rt_network.potential_connections.sort_values(
-        by="avg_path_length", ascending=True
-    ).head(25)
-)  # .connection_name.values)
+# print(rt_network.potential_connections.index[0])
+#     .sort_values(
+#         by="weighted_avg_path_length", ascending=True
+#     ).head(25)
+# )  # .connection_name.values)
 
 # suggestions often overlap with existing lines. This suggests the network may benefit from express trains
 # one potential solution is to ignore new connections with a high overlap with existing ones.

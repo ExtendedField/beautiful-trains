@@ -26,7 +26,7 @@ refresh = args.refresh
 
 city_info = read_city_json(city, "./data/city_info.json")
 
-passwd = "conductor" # encrypt somewhere buddy...
+passwd = "conductor"  # encrypt somewhere buddy...
 engine = create_engine(
     f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
 )
@@ -38,7 +38,9 @@ with open(filedir, "rb") as f:
 
 with engine.connect() as conn:
     stations = pd.DataFrame(conn.execute(select(transit_metadata.tables["stations"])))
-    station_order = pd.DataFrame(conn.execute(select(transit_metadata.tables["station_order"]))).set_index("line")
+    station_order = pd.DataFrame(
+        conn.execute(select(transit_metadata.tables["station_order"]))
+    ).set_index("line")
 
 # build network object
 # get list of stations
@@ -64,7 +66,7 @@ for (
 ) in (
     station_order.index
 ):  # cant use "lines" here because the lines may have different names
-    id_list = station_order.loc[line,"order"]
+    id_list = station_order.loc[line, "order"]
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
         station1 = {
