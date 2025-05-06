@@ -1,7 +1,7 @@
 # contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
 
 from sqlalchemy import (
-    #    ForeignKey,
+    # ForeignKey,
     Integer,
     String,
     Date,

@@ -5,7 +5,7 @@ The long term vision is to have a set of code which accepts an arbitrary city fr
 
 The current project focus is on rail based transportation in Chicago, IL, USA. The current question this code aims to answer is:
 
-***Which two currently unconnected "L" stations, if connected, would decrease the average commute length maximally when weighted by the number of rides?***
+***Which two currently unconnected "L" stations, if connected, would decrease the average commute length (measured in # of stations) maximally when weighted by the number of rides?***
 ****
 The core innovation that enables this analysis to be done is the abstraction of an interconnected rail network into a mathematical graph. 
 NetworkX is used to do this abstraction.

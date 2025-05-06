@@ -67,7 +67,6 @@ class Network:
 
         # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
         def get_weighted_path(g, edge, boardings):
-            # TODO: move anything that does not need to be every loop to outside function and pass it in.
             improved_g = g.copy()
             nodes = list(improved_g)
             index = sorted([node.network_id for node in nodes])
@@ -230,7 +229,13 @@ class Network:
             ),
         )
         if show_new_conn:
-            top_ten = self.potential_connections.sort_values(by="weighted_avg_path_length", ascending=True).head(15).index
+            top_ten = (
+                self.potential_connections.sort_values(
+                    by="weighted_avg_path_length", ascending=True
+                )
+                .head(15)
+                .index
+            )
             for edge in top_ten:
                 lam0 = edge[0].long()
                 phi0 = edge[0].lat()
