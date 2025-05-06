@@ -1,26 +1,37 @@
 {
   "chicago": {
-    "client_api": "socrata",
+    "agency_name": "cta",
     "website": "data.cityofchicago.org",
+    "client_api": "socrata",
     "token": null,
     "lines": [
       "red",
       "blue",
-      "g",
-      "brn",
-      "p",
-      "pexp",
-      "y",
-      "pnk",
-      "o"
+      "green",
+      "brown",
+      "purple",
+      "purple_exp",
+      "yellow",
+      "pink",
+      "orange"
     ],
-    "local_dir": "cta/",
-    "datasets": {
-      "station_id_map": null,
-      "station_order": null,
-      "stations": "8pix-ypme",
-      "pt_rider_data": "foo",
-      "driver_data": "foo"
+    "tables": {
+      "station_order": {
+        "local_dir": "rail_station_orders/cta.csv",
+        "remote_table_id": null
+      },
+      "stations": {
+        "local_dir": null,
+        "remote_table_id": "8pix-ypme"
+      },
+      "rider_data": {
+        "local_dir": null,
+        "remote_table_id": "5neh-572f"
+      },
+      "driver_data": {
+        "local_dir": null,
+        "remote_table_id": null
+      }
     }
   }
 }

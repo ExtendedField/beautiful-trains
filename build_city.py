@@ -1,4 +1,6 @@
 # consider storing all these classes in on file since they are rather compact presently
+import pandas as pd
+
 from rt_network.Station import Station
 from rt_network.Connection import Connection
 from rt_network.Line import Line
@@ -6,65 +8,76 @@ from rt_network.Network import Network
 
 import pickle
 import argparse
-from rt_network.utils import get_data, read_city_json
+from utils import read_city_json
 from ast import literal_eval
 import numpy as np
+from sqlalchemy import create_engine, select
 
 # pass in city
-parser = argparse.ArgumentParser(prog='RT Network Generator',
-                                 description="Generates network structure for a city's rapid transit network")
+parser = argparse.ArgumentParser(
+    prog="RT Network Generator",
+    description="Generates network structure for a city's rapid transit network",
+)
 parser.add_argument("city_name")
 parser.add_argument("-r", "--refresh", type=bool)
 args = parser.parse_args()
 city = args.city_name
 refresh = args.refresh
 
-# fetch relevant data
-stations_raw = get_data(city, "stations")
-station_id_map = get_data(city, "station_id_map").set_index("station_descriptive_name").drop(columns=["station_name"])
-station_order = get_data(city, "station_order")
-lines = read_city_json(city, "./data/city_info.json")["lines"]
+city_info = read_city_json(city, "./data/city_info.json")
 
-# pre-process id mapping
-# below removes duplicate rows by flattening instances where different directions have different lines present
-# into one list of all lines available at the station. Also removes duplicate IDs by defaulting to the maximum id value
-group_funcs = {}
-for col in station_id_map.columns:
-    if col == "station_id":
-        group_funcs[col] = "max"
-    else:
-        group_funcs[col] = "sum"
+passwd = "conductor"  # encrypt somewhere buddy...
+engine = create_engine(
+    f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
+)
 
-station_id_map = station_id_map.groupby(level=0).agg(group_funcs)
-station_id_map[lines] = station_id_map[lines].astype(bool)
+# unpickle metadata object...
+filedir = f"data/dbmetadata/{city}db_metadata.pkl"
+with open(filedir, "rb") as f:
+    transit_metadata = pickle.load(f)
+
+with engine.connect() as conn:
+    stations = pd.DataFrame(conn.execute(select(transit_metadata.tables["stations"])))
+    station_order = pd.DataFrame(
+        conn.execute(select(transit_metadata.tables["station_order"]))
+    ).set_index("line")
 
 # build network object
 # get list of stations
-stations = set()
-for stop in station_id_map.index.unique():
-    curr_stop = stations_raw[stations_raw["station_descriptive_name"] == stop].iloc[0]
-    net_id = int(station_id_map.loc[stop,"station_id"])
-    # this order was chose to mirror the "x/y" coordinate convention typically used in mathematics
+station_set = set()
+for stop_id in stations.map_id.unique():
+    curr_stop = stations[stations.map_id == stop_id].iloc[0]
+    # this order was chosen to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     raw_location = literal_eval(curr_stop.location)
-    location = (float(raw_location['longitude']), float(raw_location['latitude']))
+    location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
 
-    line_labels = curr_stop[lines]
-    available_lines = line_labels.index[np.nonzero(line_labels)]  # all lines a passenger will find at this station
-    stations.add(Station(net_id, stop, location, available_lines))
+    line_labels = curr_stop[city_info["lines"]]
+    available_lines = line_labels.index[
+        np.nonzero(line_labels)
+    ]  # all lines a passenger will find at this station
+    station_set.add(Station(stop_id, curr_stop.station_name, location, available_lines))
 
 # build lines
 # create list of connections for each line
 line_objects = set()
-for line in station_order.columns: # cant use "lines" here because the lines may have different names
-    id_list = [iden for iden in list(station_order.T.loc[line]) if str(iden) != "nan"]
+for (
+    line
+) in (
+    station_order.index
+):  # cant use "lines" here because the lines may have different names
+    id_list = station_order.loc[line, "order"]
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
-        station1 = {station for station in stations if station.network_id == station_id}.pop()
-        station2 = {station for station in stations if station.network_id == id_list[ind+1]}.pop()
+        station1 = {
+            station for station in station_set if station.network_id == station_id
+        }.pop()
+        station2 = {
+            station for station in station_set if station.network_id == id_list[ind + 1]
+        }.pop()
         connections.add(Connection(station1, station2))
-    stations_in_line = {station for station in stations if line in station.lines}
-    line_objects.add(Line(stations_in_line, connections, weighted=True))
+    stations_in_line = {station for station in station_set if line in station.lines}
+    line_objects.add(Line(stations_in_line, connections, line, weighted=True))
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections

@@ -1,3 +1,6 @@
+from networkx.algorithms.shortest_paths.generic import shortest_path_length
+
+
 class Network:
     city = ""
     lines = set()
@@ -7,14 +10,18 @@ class Network:
     graph = None
     cluster_coef_list = None
     glob_cluster_coef = None
-    avg_path_len = None
     degree_dist = None
+    wghtd_avg_path_len = None
     potential_connections = None
 
     def __init__(self, city=None, lines=None):
 
         import pandas as pd
         import networkx as nx
+        from sqlalchemy import create_engine, select, func
+        import pickle
+        import numpy as np
+        from tqdm import tqdm
 
         if lines is None:
             lines = set()
@@ -24,15 +31,23 @@ class Network:
         self.city = city
         self.lines = lines
         unpacked_stations = [line.stations for line in lines]
-        self.stations = {station for station_set in unpacked_stations for station in station_set}
+        self.stations = {
+            station for station_set in unpacked_stations for station in station_set
+        }
         unpacked_connections = [line.connections for line in lines]
-        self.connections = {connections for connections_set in unpacked_connections for connections in connections_set}
+        self.connections = {
+            connections
+            for connections_set in unpacked_connections
+            for connections in connections_set
+        }
 
         # build matrix from lines list
         network_ids = [station.network_id for station in self.stations]
         adj_matrix = pd.DataFrame(0, columns=network_ids, index=network_ids)
         for connection in self.connections:
-            adj_matrix.loc[connection.station1.network_id, connection.station2.network_id] = 1
+            adj_matrix.loc[
+                connection.station1.network_id, connection.station2.network_id
+            ] = 1
         self.matrix = adj_matrix
 
         # create graph object
@@ -42,43 +57,87 @@ class Network:
             graph = nx.compose(graph, lg)
         self.graph = graph
 
-        #generate network stats
+        # generate network stats
         self.cluster_coef_list = list(nx.clustering(self.graph).values())
-        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(self.cluster_coef_list)
+        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(
+            self.cluster_coef_list
+        )
         self.avg_path_len = nx.average_shortest_path_length(self.graph)
         self.degree_dist = nx.degree_histogram(self.graph)
 
-        #TODO: average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-
-        # create a function that adds a connection and checks the new average path length
-        def get_path_length(g, edge):
+        # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+        def get_weighted_path(g, edge, boardings):
             improved_g = g.copy()
+            nodes = list(improved_g)
+            index = sorted([node.network_id for node in nodes])
+            boardings = boardings[boardings.index.isin(index)]
+            total_boardings = float(boardings.avg_rides.sum())
+
             station1, station2 = edge
             improved_g.add_edge(station1, station2)
-            avg_path_length = nx.average_shortest_path_length(improved_g)
-            improved_g.remove_edge(station1, station2)
-            return avg_path_length
+            path_lengths = pd.DataFrame(dict(shortest_path_length(improved_g)))
+            path_lengths.index = [i.network_id for i in path_lengths.index]
+            path_lengths.columns = [i.network_id for i in path_lengths.columns]
+            path_lengths = path_lengths.sort_index().sort_index(axis=1)
+            return (
+                np.matmul(
+                    np.diag(boardings.to_numpy().flatten()).astype("float"),
+                    path_lengths,
+                ).sum()
+                / total_boardings
+            ).mean()
+
+        passwd = "conductor"  # encrypt somewhere buddy...
+        engine = create_engine(
+            f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
+        )
+
+        # unpickle metadata object...
+        filedir = f"data/dbmetadata/{city}db_metadata.pkl"
+        with open(filedir, "rb") as f:
+            transit_metadata = pickle.load(f)
+
+        with engine.connect() as conn:
+            rider_data = transit_metadata.tables["rider_data"]
+            avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
+            query = select(rider_data.c.station_id, avg_rides).group_by(
+                rider_data.c.station_id
+            )
+            daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
 
         # create a list of all connections that do not exist in graph (between lines only)
-        print("Fetching average path lengths for all possible new connections...")
+        print(
+            "Fetching weighted average path lengths for all possible new connections..."
+        )
         net_complement = nx.complement(self.graph)
-        potential_new_connections = [edge for edge in net_complement.edges if
-                                     edge[0].lines.all() == edge[1].lines.all()]
-        path_lengths = pd.DataFrame(index=pd.MultiIndex.from_tuples(potential_new_connections),
-                                    columns=["connection_name", "avg_path_length"])
-        for connection in potential_new_connections:
-            new_path_length = get_path_length(self.graph, connection)
+        potential_new_connections = [
+            edge
+            for edge in net_complement.edges
+            if len(set(edge[0].lines) & set(edge[1].lines)) == 0
+        ]
+        wgtd_path_lengths = pd.DataFrame(
+            index=pd.MultiIndex.from_tuples(potential_new_connections),
+            columns=["connection_name", "weighted_avg_path_length"],
+        )
+        for connection in tqdm(potential_new_connections):
+            new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
             readable_name = f"{connection[0].name} to {connection[1].name}"
-            path_lengths.loc[connection, "connection_name"] = readable_name
-            path_lengths.loc[connection, "avg_path_length"] = new_path_length
+            wgtd_path_lengths.loc[connection, "connection_name"] = readable_name
+            wgtd_path_lengths.loc[connection, "weighted_avg_path_length"] = (
+                new_path_length
+            )
 
-        self.potential_connections = path_lengths
+        self.potential_connections = wgtd_path_lengths
+        self.wghtd_avg_path_len = wgtd_path_lengths.weighted_avg_path_length.mean()
 
-    def plot(self, proj="mercator") -> None:
+    def __str__(self):
+        return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
+
+    def plot(self, show_new_conn=False, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
-        from rt_network.utils import project
+        from utils import project
 
         g = self.graph
         edge_x = []
@@ -98,10 +157,12 @@ class Network:
             edge_y.append(None)
 
         edge_trace = go.Scatter(
-            x=edge_x, y=edge_y,
-            line=dict(width=0.5, color='#888'),
-            hoverinfo='none',
-            mode='lines')
+            x=edge_x,
+            y=edge_y,
+            line=dict(width=0.5, color="#888"),
+            hoverinfo="none",
+            mode="lines",
+        )
 
         node_x = []
         node_y = []
@@ -115,28 +176,28 @@ class Network:
             node_text.append(f"Name: {node.name}\nID: {node.network_id}")
 
         node_trace = go.Scatter(
-            x=node_x, y=node_y,
-            mode='markers',
-            hoverinfo='text',
+            x=node_x,
+            y=node_y,
+            mode="markers",
+            hoverinfo="text",
             marker=dict(
                 showscale=True,
                 # colorscale options
                 # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
                 # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
                 # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-                colorscale='Greens',
+                colorscale="Greens",
                 reversescale=True,
                 color=[],
                 size=10,
                 colorbar=dict(
                     thickness=15,
-                    title=dict(
-                        text='Node Connections',
-                        side='right'
-                    ),
-                    xanchor='left',
+                    title=dict(text="Node Connections", side="right"),
+                    xanchor="left",
                 ),
-                line_width=2))
+                line_width=2,
+            ),
+        )
 
         node_adjacencies = []
         for node, adjacencies in enumerate(g.adjacency()):
@@ -145,27 +206,59 @@ class Network:
         node_trace.marker.color = node_adjacencies
         node_trace.text = node_text
 
-        fig = go.Figure(data=[edge_trace, node_trace],
-                        layout=go.Layout(
-                            title=dict(
-                                text="<br>Network graph made with Python",
-                                font=dict(
-                                    size=16
-                                )
-                            ),
-                            showlegend=False,
-                            hovermode='closest',
-                            margin=dict(b=20, l=5, r=5, t=40),
-                            annotations=[dict(
-                                text=f"Map of {self.city}'s rapid transit network",
-                                showarrow=False,
-                                xref="paper", yref="paper",
-                                x=0.005, y=-0.002)],
-                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
-                        )
+        fig = go.Figure(
+            layout=go.Layout(
+                title=dict(
+                    text="<br>Network graph made with Python", font=dict(size=16)
+                ),
+                showlegend=False,
+                hovermode="closest",
+                margin=dict(b=20, l=5, r=5, t=40),
+                annotations=[
+                    dict(
+                        text=f"Map of {self.city}'s rapid transit network",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.005,
+                        y=-0.002,
+                    )
+                ],
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            ),
+        )
+        if show_new_conn:
+            top_ten = (
+                self.potential_connections.sort_values(
+                    by="weighted_avg_path_length", ascending=True
+                )
+                .head(15)
+                .index
+            )
+            for edge in top_ten:
+                lam0 = edge[0].long()
+                phi0 = edge[0].lat()
+                x0, y0 = project(lam0, phi0, proj)
+                lam1 = edge[1].long()
+                phi1 = edge[1].lat()
+                x1, y1 = project(lam1, phi1, proj)
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+            new_edge_trace = go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=0.5, color="#ff0000"),
+                hoverinfo="none",
+                mode="lines",
+            )
+            fig.add_trace(new_edge_trace)
+        fig.add_trace(node_trace)
+        fig.add_trace(edge_trace)
         fig.show()
-
-
 
     # create functions to return network stats that are of interest
