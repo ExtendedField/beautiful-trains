@@ -73,4 +73,9 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
+    "train_timings":{
+        "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+        "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
+        "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
+    }
 }

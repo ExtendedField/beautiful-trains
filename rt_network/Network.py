@@ -1,6 +1,3 @@
-from networkx.algorithms.shortest_paths.generic import shortest_path_length
-
-
 class Network:
     city = ""
     lines = set()
@@ -11,17 +8,18 @@ class Network:
     cluster_coef_list = None
     glob_cluster_coef = None
     degree_dist = None
-    wghtd_avg_path_len = None
-    potential_connections = None
+    efficiency_stats = None
 
     def __init__(self, city=None, lines=None):
 
+        from networkx.algorithms.shortest_paths.generic import shortest_path_length
         import pandas as pd
         import networkx as nx
         from sqlalchemy import create_engine, select, func
         import pickle
         import numpy as np
         from tqdm import tqdm
+        from rt_network.Connection import Connection
 
         if lines is None:
             lines = set()
@@ -66,16 +64,13 @@ class Network:
         self.degree_dist = nx.degree_histogram(self.graph)
 
         # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-        def get_weighted_path(g, edge, boardings):
-            improved_g = g.copy()
-            nodes = list(improved_g)
+        def get_weighted_path(g, boardings):
+            nodes = list(g)
             index = sorted([node.network_id for node in nodes])
             boardings = boardings[boardings.index.isin(index)]
             total_boardings = float(boardings.avg_rides.sum())
 
-            station1, station2 = edge
-            improved_g.add_edge(station1, station2)
-            path_lengths = pd.DataFrame(dict(shortest_path_length(improved_g)))
+            path_lengths = pd.DataFrame(dict(shortest_path_length(g, weight="distance")))
             path_lengths.index = [i.network_id for i in path_lengths.index]
             path_lengths.columns = [i.network_id for i in path_lengths.columns]
             path_lengths = path_lengths.sort_index().sort_index(axis=1)
@@ -115,25 +110,31 @@ class Network:
             for edge in net_complement.edges
             if len(set(edge[0].lines) & set(edge[1].lines)) == 0
         ]
-        wgtd_path_lengths = pd.DataFrame(
+        efficiency_stats = pd.DataFrame(
             index=pd.MultiIndex.from_tuples(potential_new_connections),
-            columns=["connection_name", "weighted_avg_path_length"],
+            columns=["connection_name", "weighted_avg_path_length", "global_efficiency"],
         )
         for connection in tqdm(potential_new_connections):
-            new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
+            station1, station2 = connection
+            new_conn = Connection(station1, station2)
+            improved_g = self.graph.copy()
+
+            improved_g.add_edge(station1, station2, distance=new_conn.distance)
+            new_path_length = get_weighted_path(improved_g, daily_boardings)
             readable_name = f"{connection[0].name} to {connection[1].name}"
-            wgtd_path_lengths.loc[connection, "connection_name"] = readable_name
-            wgtd_path_lengths.loc[connection, "weighted_avg_path_length"] = (
+            efficiency_stats.loc[connection, "connection_name"] = readable_name
+            efficiency_stats.loc[connection, "weighted_avg_path_length"] = (
                 new_path_length
             )
+            efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(improved_g)
 
-        self.potential_connections = wgtd_path_lengths
-        self.wghtd_avg_path_len = wgtd_path_lengths.weighted_avg_path_length.mean()
+        self.efficiency_stats = efficiency_stats
+        self.wghtd_avg_path_len = efficiency_stats.weighted_avg_path_length.mean()
 
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
-    def plot(self, show_new_conn=False, proj="mercator") -> None:
+    def plot(self, new_conn=None, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -209,7 +210,7 @@ class Network:
         fig = go.Figure(
             layout=go.Layout(
                 title=dict(
-                    text="<br>Network graph made with Python", font=dict(size=16)
+                    text=f"<br>{self.city}", font=dict(size=16)
                 ),
                 showlegend=False,
                 hovermode="closest",
@@ -228,12 +229,16 @@ class Network:
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
             ),
         )
-        if show_new_conn:
+        if new_conn:
+            if new_conn == "global_efficiency":
+                ascending=False
+            else:
+                ascending=True
             top_ten = (
-                self.potential_connections.sort_values(
-                    by="weighted_avg_path_length", ascending=True
+                self.efficiency_stats.sort_values(
+                    by=new_conn, ascending=ascending
                 )
-                .head(15)
+                .head(10)
                 .index
             )
             for edge in top_ten:
