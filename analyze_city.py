@@ -20,4 +20,7 @@ print(f"Average Path Length: {rt_network.avg_path_len}")
 print(f"Degree Distribution: {rt_network.degree_dist}\n")
 
 # analysis and behavior can be done here
-rt_network.plot(show_new_conn=True)
+#rt_network.plot(new_conn="global_efficiency")
+
+print(rt_network.efficiency_stats.sort_values("global_efficiency", ascending=False).head(25))
+print(rt_network.efficiency_stats[["weighted_avg_path_length","global_efficiency"]].corr())

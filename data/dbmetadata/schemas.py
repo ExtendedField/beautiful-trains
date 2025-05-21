@@ -3,6 +3,7 @@
 from sqlalchemy import (
     # ForeignKey,
     Integer,
+    Numeric,
     String,
     Date,
     Boolean,
@@ -73,4 +74,26 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
+    # "train_timings":{
+    #     "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+    #     "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
+    #     "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
+    # }, # uncomment when data is located
+    "efficiency_stats":{
+        "station1": {"type": String, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "station2": {"type": String, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "mean_shortest_path_length": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "weighted_shortest_path": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "global_efficiency": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        #"mean_distance_to_nearest_2": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        #"mean_distance_to_nearest_5": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "barycenter": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
+        "eccentricity": {"type": ARRAY(Numeric), "params": {"args": [], "kwargs": {}}},
+        "avg_clustering": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        #"communicability": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "effective_graph_resistance": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "pagerank": {"type": JSON, "params": {"args": [], "kwargs": {}}},
+        #"smallworld_sigma": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        #"smallworld_omega": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+    }
 }

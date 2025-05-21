@@ -1,6 +1,3 @@
-from networkx.algorithms.shortest_paths.generic import shortest_path_length
-
-
 class Network:
     city = ""
     lines = set()
@@ -8,20 +5,11 @@ class Network:
     stations = set()
     matrix = None
     graph = None
-    cluster_coef_list = None
-    glob_cluster_coef = None
-    degree_dist = None
-    wghtd_avg_path_len = None
-    potential_connections = None
 
     def __init__(self, city=None, lines=None):
-
         import pandas as pd
         import networkx as nx
-        from sqlalchemy import create_engine, select, func
-        import pickle
         import numpy as np
-        from tqdm import tqdm
 
         if lines is None:
             lines = set()
@@ -65,75 +53,11 @@ class Network:
         self.avg_path_len = nx.average_shortest_path_length(self.graph)
         self.degree_dist = nx.degree_histogram(self.graph)
 
-        # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-        def get_weighted_path(g, edge, boardings):
-            improved_g = g.copy()
-            nodes = list(improved_g)
-            index = sorted([node.network_id for node in nodes])
-            boardings = boardings[boardings.index.isin(index)]
-            total_boardings = float(boardings.avg_rides.sum())
-
-            station1, station2 = edge
-            improved_g.add_edge(station1, station2)
-            path_lengths = pd.DataFrame(dict(shortest_path_length(improved_g)))
-            path_lengths.index = [i.network_id for i in path_lengths.index]
-            path_lengths.columns = [i.network_id for i in path_lengths.columns]
-            path_lengths = path_lengths.sort_index().sort_index(axis=1)
-            return (
-                np.matmul(
-                    np.diag(boardings.to_numpy().flatten()).astype("float"),
-                    path_lengths,
-                ).sum()
-                / total_boardings
-            ).mean()
-
-        passwd = "conductor"  # encrypt somewhere buddy...
-        engine = create_engine(
-            f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
-        )
-
-        # unpickle metadata object...
-        filedir = f"data/dbmetadata/{city}db_metadata.pkl"
-        with open(filedir, "rb") as f:
-            transit_metadata = pickle.load(f)
-
-        with engine.connect() as conn:
-            rider_data = transit_metadata.tables["rider_data"]
-            avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
-            query = select(rider_data.c.station_id, avg_rides).group_by(
-                rider_data.c.station_id
-            )
-            daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
-
-        # create a list of all connections that do not exist in graph (between lines only)
-        print(
-            "Fetching weighted average path lengths for all possible new connections..."
-        )
-        net_complement = nx.complement(self.graph)
-        potential_new_connections = [
-            edge
-            for edge in net_complement.edges
-            if len(set(edge[0].lines) & set(edge[1].lines)) == 0
-        ]
-        wgtd_path_lengths = pd.DataFrame(
-            index=pd.MultiIndex.from_tuples(potential_new_connections),
-            columns=["connection_name", "weighted_avg_path_length"],
-        )
-        for connection in tqdm(potential_new_connections):
-            new_path_length = get_weighted_path(self.graph, connection, daily_boardings)
-            readable_name = f"{connection[0].name} to {connection[1].name}"
-            wgtd_path_lengths.loc[connection, "connection_name"] = readable_name
-            wgtd_path_lengths.loc[connection, "weighted_avg_path_length"] = (
-                new_path_length
-            )
-
-        self.potential_connections = wgtd_path_lengths
-        self.wghtd_avg_path_len = wgtd_path_lengths.weighted_avg_path_length.mean()
-
     def __str__(self):
         return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
-    def plot(self, show_new_conn=False, proj="mercator") -> None:
+# implement a voronoi cell plotting function once all nodes are added rather than just rail
+    def plot(self, new_conn=None, proj="mercator") -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -209,7 +133,7 @@ class Network:
         fig = go.Figure(
             layout=go.Layout(
                 title=dict(
-                    text="<br>Network graph made with Python", font=dict(size=16)
+                    text=f"<br>{self.city}", font=dict(size=16)
                 ),
                 showlegend=False,
                 hovermode="closest",
@@ -228,12 +152,16 @@ class Network:
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
             ),
         )
-        if show_new_conn:
+        if new_conn:
+            if new_conn == "global_efficiency":
+                ascending=False
+            else:
+                ascending=True
             top_ten = (
-                self.potential_connections.sort_values(
-                    by="weighted_avg_path_length", ascending=True
+                self.efficiency_stats.sort_values(
+                    by=new_conn, ascending=ascending
                 )
-                .head(15)
+                .head(10)
                 .index
             )
             for edge in top_ten:
