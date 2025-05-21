@@ -1,14 +1,40 @@
 import pandas as pd
 import json
+from tqdm import tqdm
+from time import sleep
 
+def build_table(metadata, table_name, schema):
+    from sqlalchemy import (
+        Table,
+        Column,
+    )
+
+    columns = [
+        Column(
+            column_name,
+            info["type"],
+            *info["params"]["args"],
+            **info["params"]["kwargs"],
+        )
+        for column_name, info in schema.items()
+    ]
+
+    table = Table(
+        table_name,
+        metadata,
+        *columns,
+    )
+
+    return table
 
 def add_to_db(
     city,
     table,
     engine,
-    client,
+    client=None, #optional in the case where only a csv or DF is passed
     table_id=None,
     source_csv=None,
+    source_df=None,
     refresh=False,
     **query_params,
 ):
@@ -35,8 +61,9 @@ def add_to_db(
             offsets = [chunk_size * x for x in range(num_chunks)]
             data = client.get(table_id, offset=offsets[0], **query_params)
             if len(offsets) > 1:
-                for offset in offsets:  # add [-100:] to avoid throttling for now
+                for offset in tqdm(offsets):  # add [-100:] to avoid throttling for now
                     data.extend(client.get(table_id, offset=offset, **query_params))
+                    sleep(0.01) # if API calls are made too frequently, not all data will be fetched.
             print("Data Downloaded.")
         except:
             # maybe make this more informative
@@ -47,8 +74,10 @@ def add_to_db(
         if table.name == "station_order":
             data["order"] = data["order"].str.split(",")
         data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
+    elif source_df is not None:
+        data = [row.to_dict() for i, row in source_df.iterrows()]  # convert to list of dicts
     else:
-        print("No table_id or source_csv given. Data not added.")
+        print(f"No table_id, source_csv, or source_df given. Table: {table_name} will be left empty.")
         return
     print(f"Writing to table: {city}_transitdb.{table_name}")
     import numpy as np
@@ -104,28 +133,3 @@ def project(lam, phi, proj="mercator", deg=True):
         raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
 
     return x, y
-
-
-def build_table(metadata, table_name, schema):
-    from sqlalchemy import (
-        Table,
-        Column,
-    )
-
-    columns = [
-        Column(
-            column_name,
-            info["type"],
-            *info["params"]["args"],
-            **info["params"]["kwargs"],
-        )
-        for column_name, info in schema.items()
-    ]
-
-    table = Table(
-        table_name,
-        metadata,
-        *columns,
-    )
-
-    return table

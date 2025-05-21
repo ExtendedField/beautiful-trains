@@ -23,7 +23,7 @@ class Station:
         self.lines = lines
 
     def __str__(self):
-        return f"{self.name}\nLocated at:{self.location}"
+        return f"{self.name}: {",".join(self.lines)}"
 
     def lat(self):
         return self.location[1]
