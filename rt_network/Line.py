@@ -37,4 +37,4 @@ class Line:
         self.line_graph = graph
 
     def __str__(self):
-        return f"{self.name} line\nnumber of stations:{len(self.stations)}"
+        return f"{self.name} line. number of stations:{len(self.stations)}"

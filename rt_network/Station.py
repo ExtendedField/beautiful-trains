@@ -17,13 +17,13 @@ class Station:
         if not (isinstance(net_id, int) or isinstance(net_id, int64)):
             raise Exception("Please provide an integer as your station ID")
 
-        self.network_id = net_id
-        self.name = name
-        self.location = location
-        self.lines = lines
+        self.network_id = int(net_id)
+        self.name = str(name)
+        self.location = tuple(location)
+        self.lines = list(lines)
 
     def __str__(self):
-        return f"{self.name}: {",".join(self.lines)}"
+        return f"{self.name}: {", ".join(self.lines)}"
 
     def lat(self):
         return self.location[1]

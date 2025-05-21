@@ -3,13 +3,10 @@ class Network:
     lines = set()
     connections = set()
     stations = set()
-    matrix = None
     graph = None
 
     def __init__(self, city=None, lines=None):
-        import pandas as pd
         import networkx as nx
-        import numpy as np
 
         if lines is None:
             lines = set()
@@ -29,15 +26,6 @@ class Network:
             for connections in connections_set
         }
 
-        # build matrix from lines list
-        network_ids = [station.network_id for station in self.stations]
-        adj_matrix = pd.DataFrame(0, columns=network_ids, index=network_ids)
-        for connection in self.connections:
-            adj_matrix.loc[
-                connection.station1.network_id, connection.station2.network_id
-            ] = 1
-        self.matrix = adj_matrix
-
         # create graph object
         graph = nx.Graph()
         line_graphs = {line.line_graph for line in lines}
@@ -45,19 +33,11 @@ class Network:
             graph = nx.compose(graph, lg)
         self.graph = graph
 
-        # generate network stats
-        self.cluster_coef_list = list(nx.clustering(self.graph).values())
-        self.glob_cluster_coef = sum(self.cluster_coef_list) / len(
-            self.cluster_coef_list
-        )
-        self.avg_path_len = nx.average_shortest_path_length(self.graph)
-        self.degree_dist = nx.degree_histogram(self.graph)
-
     def __str__(self):
-        return f"{self.city}'s tranist network\nNumber of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
+        return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
 # implement a voronoi cell plotting function once all nodes are added rather than just rail
-    def plot(self, new_conn=None, proj="mercator") -> None:
+    def plot_map(self, proj="mercator", new_conn=False, optimization_stat="mean_shortest_path_length", asc=True, conn_number=10) -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -83,7 +63,7 @@ class Network:
         edge_trace = go.Scatter(
             x=edge_x,
             y=edge_y,
-            line=dict(width=0.5, color="#888"),
+            line=dict(width=0.5, color="black"),
             hoverinfo="none",
             mode="lines",
         )
@@ -105,14 +85,8 @@ class Network:
             mode="markers",
             hoverinfo="text",
             marker=dict(
-                showscale=True,
-                # colorscale options
-                # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
-                # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
-                # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-                colorscale="Greens",
                 reversescale=True,
-                color=[],
+                color="green",
                 size=10,
                 colorbar=dict(
                     thickness=15,
@@ -123,11 +97,6 @@ class Network:
             ),
         )
 
-        node_adjacencies = []
-        for node, adjacencies in enumerate(g.adjacency()):
-            node_adjacencies.append(len(adjacencies[1]))
-
-        node_trace.marker.color = node_adjacencies
         node_trace.text = node_text
 
         fig = go.Figure(
@@ -153,23 +122,38 @@ class Network:
             ),
         )
         if new_conn:
-            if new_conn == "global_efficiency":
-                ascending=False
-            else:
-                ascending=True
-            top_ten = (
-                self.efficiency_stats.sort_values(
-                    by=new_conn, ascending=ascending
-                )
-                .head(10)
-                .index
+            from sqlalchemy import create_engine, select
+            import pickle
+            import pandas as pd
+            passwd = "conductor"  # encrypt somewhere buddy...
+            engine = create_engine(
+                f"postgresql://transitdb_user:{passwd}@localhost/{self.city}_transitdb"
             )
-            for edge in top_ten:
-                lam0 = edge[0].long()
-                phi0 = edge[0].lat()
+
+            # unpickle metadata object...
+            filedir = f"data/dbmetadata/{self.city}db_metadata.pkl"
+            with open(filedir, "rb") as f:
+                transit_metadata = pickle.load(f)
+
+            with engine.connect() as conn:
+                efficiency_stats=transit_metadata.tables["efficiency_stats"]
+                if asc:
+                    query = select(efficiency_stats.c["station1", "station2", optimization_stat]).order_by(
+                        efficiency_stats.c[optimization_stat].asc()).limit(conn_number)
+                else:
+                    query = select(efficiency_stats.c["station1", "station2", optimization_stat]).order_by(
+                        efficiency_stats.c[optimization_stat].desc()).limit(conn_number)
+
+                best_conns = pd.DataFrame(conn.execute(query))
+                for col in ["station1", "station2"]:
+                    best_conns.loc[:,col] = [stop for stop in self.stations for station in best_conns.loc[:,col] if str(stop) == station]
+
+            for i, row in best_conns.iterrows():
+                lam0 = row.station1.long()
+                phi0 = row.station1.lat()
                 x0, y0 = project(lam0, phi0, proj)
-                lam1 = edge[1].long()
-                phi1 = edge[1].lat()
+                lam1 = row.station2.long()
+                phi1 = row.station2.lat()
                 x1, y1 = project(lam1, phi1, proj)
                 edge_x.append(x0)
                 edge_x.append(x1)
@@ -177,10 +161,11 @@ class Network:
                 edge_y.append(y0)
                 edge_y.append(y1)
                 edge_y.append(None)
+
             new_edge_trace = go.Scatter(
                 x=edge_x,
                 y=edge_y,
-                line=dict(width=0.5, color="#ff0000"),
+                line=dict(width=0.5, color="red"),
                 hoverinfo="none",
                 mode="lines",
             )
