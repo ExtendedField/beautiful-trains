@@ -37,32 +37,37 @@ class Network:
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
 # implement a voronoi cell plotting function once all nodes are added rather than just rail
-    def plot_map(self, proj="mercator", new_conn=False, optimization_stat="mean_shortest_path_length", asc=True, conn_number=10) -> None:
+    def plot_map(self,
+                 new_conn=False,
+                 optimization_stat="mean_shortest_path_length",
+                 asc=True,
+                 conn_number=10) -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
-        from utils import project
+        import networkx as nx
 
+        #TODO: color lines based on their color rather than being all the same.
         g = self.graph
         edge_x = []
         edge_y = []
         for edge in g.edges():
             lam0 = edge[0].long()
             phi0 = edge[0].lat()
-            x0, y0 = project(lam0, phi0, proj)
+            #x0, y0 = project(lam0, phi0, proj)
             lam1 = edge[1].long()
             phi1 = edge[1].lat()
-            x1, y1 = project(lam1, phi1, proj)
-            edge_x.append(x0)
-            edge_x.append(x1)
+            #x1, y1 = project(lam1, phi1, proj)
+            edge_x.append(lam0)
+            edge_x.append(lam1)
             edge_x.append(None)
-            edge_y.append(y0)
-            edge_y.append(y1)
+            edge_y.append(phi0)
+            edge_y.append(phi1)
             edge_y.append(None)
 
-        edge_trace = go.Scatter(
-            x=edge_x,
-            y=edge_y,
+        edge_trace = go.Scattermap(
+            lat=edge_y,
+            lon=edge_x,
             line=dict(width=0.5, color="black"),
             hoverinfo="none",
             mode="lines",
@@ -74,30 +79,24 @@ class Network:
         for node in g.nodes():
             lam = node.long()
             phi = node.lat()
-            x, y = project(lam, phi, proj)
-            node_x.append(x)
-            node_y.append(y)
+            # x, y = project(lam, phi, proj)
+            node_x.append(lam)
+            node_y.append(phi)
             node_text.append(f"Name: {node.name}\nID: {node.network_id}")
 
-        node_trace = go.Scatter(
-            x=node_x,
-            y=node_y,
+        node_trace = go.Scattermap(
+            lat=node_y,
+            lon=node_x,
             mode="markers",
             hoverinfo="text",
-            marker=dict(
-                reversescale=True,
-                color="green",
-                size=10,
-                colorbar=dict(
-                    thickness=15,
-                    title=dict(text="Node Connections", side="right"),
-                    xanchor="left",
-                ),
-                line_width=2,
-            ),
+            marker=go.scattermap.Marker(size=9),
         )
 
         node_trace.text = node_text
+
+        # map scale logic
+        lon, lat = nx.barycenter(self.graph)[0].location
+        center = dict(lat=lat,lon=lon)
 
         fig = go.Figure(
             layout=go.Layout(
@@ -117,8 +116,11 @@ class Network:
                         y=-0.002,
                     )
                 ],
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                map=dict(center=center,
+                         zoom=10,
+                         bearing=0,
+                         pitch=0,
+                         style='light')
             ),
         )
         if new_conn:
@@ -151,20 +153,20 @@ class Network:
             for i, row in best_conns.iterrows():
                 lam0 = row.station1.long()
                 phi0 = row.station1.lat()
-                x0, y0 = project(lam0, phi0, proj)
+                #x0, y0 = project(lam0, phi0, proj)
                 lam1 = row.station2.long()
                 phi1 = row.station2.lat()
-                x1, y1 = project(lam1, phi1, proj)
-                edge_x.append(x0)
-                edge_x.append(x1)
+                #x1, y1 = project(lam1, phi1, proj)
+                edge_x.append(lam0)
+                edge_x.append(lam1)
                 edge_x.append(None)
-                edge_y.append(y0)
-                edge_y.append(y1)
+                edge_y.append(phi0)
+                edge_y.append(phi1)
                 edge_y.append(None)
 
-            new_edge_trace = go.Scatter(
-                x=edge_x,
-                y=edge_y,
+            new_edge_trace = go.Scattermap(
+                lat=edge_y,
+                lon=edge_x,
                 line=dict(width=0.5, color="red"),
                 hoverinfo="none",
                 mode="lines",
