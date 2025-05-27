@@ -44,7 +44,7 @@ with open(filedir, "rb") as f:
 with engine.connect() as conn:
     stations_db = transit_metadata.tables["stations"]
     line_aggs = []
-    for line in city_info["lines"]:
+    for line in city_info["lines"].keys():
         line_aggs.append(func.bool_or(stations_db.c[line]).label(line))
     location_func = func.max(stations_db.c.location).label("location")
     query = select(stations_db.c["station_name", "map_id"], location_func, *line_aggs).group_by(stations_db.c["station_name", "map_id"])
@@ -68,9 +68,10 @@ for stop_id in stations.map_id.unique():
     # the below order was chosen to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
-    line_labels = curr_stop[city_info["lines"]].T
+    line_labels = curr_stop[city_info["lines"].keys()].T
     available_lines = line_labels.index[np.nonzero(line_labels)] # all lines a passenger will find at this station
-    station_set.add(Station(stop_id, curr_stop.station_name, location, available_lines))
+    colors = [city_info["lines"][line] for line in city_info["lines"].keys() if line in available_lines]
+    station_set.add(Station(stop_id, curr_stop.station_name, location, available_lines, colors))
 
 # build lines
 # create list of connections for each line
@@ -87,7 +88,9 @@ for line in station_order.index:  # cant use "lines" here because the lines may 
         }.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {station for station in station_set if any([lyne in line for lyne in station.lines])}
-    line_objects.add(Line(stations_in_line, connections, line, weighted=True))
+    true_line = [l for l in city_info["lines"].keys() if l in line][0] # resolves multiple endpoint issue
+    line_color = city_info["lines"][true_line]
+    line_objects.add(Line(stations_in_line, connections, line, line_color, weighted=True))
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
