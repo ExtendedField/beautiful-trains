@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("city_name")
 parser.add_argument("-r", "--refresh", action="store_true")
-parser.add_argument( "--nodata", action="store_true")
+parser.add_argument("--nodata", action="store_true")
 args = parser.parse_args()
 city = args.city_name
 refresh = args.refresh
@@ -44,19 +44,19 @@ with open(filedir, "rb") as f:
 with engine.connect() as conn:
     stations_db = transit_metadata.tables["stations"]
     line_aggs = []
-    for line in city_info["lines"]:
+    for line in city_info["lines"].keys():
         line_aggs.append(func.bool_or(stations_db.c[line]).label(line))
     location_func = func.max(stations_db.c.location).label("location")
-    query = select(stations_db.c["station_name", "map_id"], location_func, *line_aggs).group_by(stations_db.c["station_name", "map_id"])
+    query = select(
+        stations_db.c["station_name", "map_id"], location_func, *line_aggs
+    ).group_by(stations_db.c["station_name", "map_id"])
     stations = pd.DataFrame(conn.execute(query))
     station_order = pd.DataFrame(
         conn.execute(select(transit_metadata.tables["station_order"]))
     ).set_index("line")
     rider_data = transit_metadata.tables["rider_data"]
     avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
-    query = select(rider_data.c.station_id, avg_rides).group_by(
-        rider_data.c.station_id
-    )
+    query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
     daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
 
 # build network object
@@ -68,14 +68,27 @@ for stop_id in stations.map_id.unique():
     # the below order was chosen to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
-    line_labels = curr_stop[city_info["lines"]].T
-    available_lines = line_labels.index[np.nonzero(line_labels)] # all lines a passenger will find at this station
-    station_set.add(Station(stop_id, curr_stop.station_name, location, available_lines))
+    line_labels = curr_stop[city_info["lines"].keys()].T
+    available_lines = line_labels.index[
+        np.nonzero(line_labels)
+    ]  # all lines a passenger will find at this station
+    colors = [
+        city_info["lines"][line]
+        for line in city_info["lines"].keys()
+        if line in available_lines
+    ]
+    station_set.add(
+        Station(stop_id, curr_stop.station_name, location, available_lines, colors)
+    )
 
 # build lines
 # create list of connections for each line
 line_objects = set()
-for line in station_order.index:  # cant use "lines" here because the lines may have different names
+for (
+    line
+) in (
+    station_order.index
+):  # cant use "lines" here because the lines may have different names
     id_list = station_order.loc[line, "order"]
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
@@ -86,8 +99,18 @@ for line in station_order.index:  # cant use "lines" here because the lines may 
             station for station in station_set if station.network_id == id_list[ind + 1]
         }.pop()
         connections.add(Connection(station1, station2))
-    stations_in_line = {station for station in station_set if any([lyne in line for lyne in station.lines])}
-    line_objects.add(Line(stations_in_line, connections, line, weighted=True))
+    stations_in_line = {
+        station
+        for station in station_set
+        if any([lyne in line for lyne in station.lines])
+    }
+    true_line = [l for l in city_info["lines"].keys() if l in line][
+        0
+    ]  # resolves multiple endpoint issue
+    line_color = city_info["lines"][true_line]
+    line_objects.add(
+        Line(stations_in_line, connections, line, line_color, weighted=True)
+    )
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
@@ -115,9 +138,7 @@ if include_data:
         ).mean()
 
     # create a list of all connections that do not exist in graph (between lines only)
-    print(
-        "Fetching weighted average path lengths for all possible new connections..."
-    )
+    print("Fetching weighted average path lengths for all possible new connections...")
     net_complement = nx.complement(transport_network.graph)
     potential_new_connections = [
         edge
@@ -127,34 +148,65 @@ if include_data:
     # calculate statistics characterizing the network
     efficiency_stats = pd.DataFrame(
         index=pd.MultiIndex.from_tuples(potential_new_connections),
-        columns=[col for col in transit_metadata.tables["efficiency_stats"].c.keys() if "station" not in col], #removing index stations for later
+        columns=[
+            col
+            for col in transit_metadata.tables["efficiency_stats"].c.keys()
+            if "station" not in col
+        ],  # removing index stations for later
     )
     for connection in tqdm(potential_new_connections):
         station1, station2 = connection
-        new_conn = Connection(station1, station2) # this is necessary as nx.compliment does not calculate edge distance
+        new_conn = Connection(
+            station1, station2
+        )  # this is necessary as nx.compliment does not calculate edge distance
         improved_g = transport_network.graph.copy()
 
         improved_g.add_edge(station1, station2, distance=new_conn.distance)
 
         # this block feels like there should be a better way but this is the cleanest so far.
-        efficiency_stats.loc[connection, "mean_shortest_path_length"] = nx.average_shortest_path_length(improved_g, weight="distance")
-        efficiency_stats.loc[connection, "weighted_shortest_path"] = weighted_shortest_path(improved_g, daily_boardings, weight="distance")
-        efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(improved_g)
-        efficiency_stats.loc[connection, "barycenter"] = [str(center) for center in nx.barycenter(improved_g, weight="distance")]
-        efficiency_stats.loc[connection, "eccentricity"] = [float(i) for i in nx.eccentricity(improved_g, weight="distance").values()]
-        efficiency_stats.loc[connection, "avg_clustering"] = nx.average_clustering(improved_g, weight="distance") # potentially more sensible to do this at the node level to detect neighborhoods
-        efficiency_stats.loc[connection, "effective_graph_resistance"] = nx.effective_graph_resistance(improved_g, weight="distance")
+        efficiency_stats.loc[connection, "mean_shortest_path_length"] = (
+            nx.average_shortest_path_length(improved_g, weight="distance")
+        )
+        efficiency_stats.loc[connection, "weighted_shortest_path"] = (
+            weighted_shortest_path(improved_g, daily_boardings, weight="distance")
+        )
+        efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(
+            improved_g
+        )
+        efficiency_stats.loc[connection, "barycenter"] = [
+            str(center) for center in nx.barycenter(improved_g, weight="distance")
+        ]
+        efficiency_stats.loc[connection, "eccentricity"] = [
+            float(i) for i in nx.eccentricity(improved_g, weight="distance").values()
+        ]
+        efficiency_stats.loc[connection, "avg_clustering"] = nx.average_clustering(
+            improved_g, weight="distance"
+        )  # potentially more sensible to do this at the node level to detect neighborhoods
+        efficiency_stats.loc[connection, "effective_graph_resistance"] = (
+            nx.effective_graph_resistance(improved_g, weight="distance")
+        )
         page_dict = nx.pagerank(improved_g, weight="distance")
-        efficiency_stats.loc[connection, "pagerank"] = str(dict(zip([str(key) for key in page_dict.keys()], page_dict.values())))
+        efficiency_stats.loc[connection, "pagerank"] = str(
+            dict(zip([str(key) for key in page_dict.keys()], page_dict.values()))
+        )
 
         # efficiency_stats.loc[connection, "smallworld_sigma"] = nx.sigma(improved_g) # these numbers seem off, and it is very slow
         # efficiency_stats.loc[connection, "smallworld_omega"] = nx.omega(improved_g) # I dont think this is a particularly good measure of a transit network
         # efficiency_stats.loc[connection, "communicability"] = nx.communicability(improved_g) # This strikes me as detecting redundancy more than anything else
 
     print("Adding network stats to DB...")
-    efficiency_stats = efficiency_stats.reset_index().rename(columns={"level_0":"station1","level_1":"station2"})
-    efficiency_stats.loc[:,["station1","station2"]] = efficiency_stats.loc[:,["station1","station2"]].astype(str)
-    add_to_db("chicago", transit_metadata.tables["efficiency_stats"], engine, source_df=efficiency_stats)
+    efficiency_stats = efficiency_stats.reset_index().rename(
+        columns={"level_0": "station1", "level_1": "station2"}
+    )
+    efficiency_stats.loc[:, ["station1", "station2"]] = efficiency_stats.loc[
+        :, ["station1", "station2"]
+    ].astype(str)
+    add_to_db(
+        "chicago",
+        transit_metadata.tables["efficiency_stats"],
+        engine,
+        source_df=efficiency_stats,
+    )
     print("Network stats added.")
 
 print("Pickling Network...")

@@ -4,17 +4,17 @@
     "website": "data.cityofchicago.org",
     "client_api": "socrata",
     "token": null,
-    "lines": [
-      "red",
-      "blue",
-      "green",
-      "brown",
-      "purple",
-      "purple_exp",
-      "yellow",
-      "pink",
-      "orange"
-    ],
+    "lines": {
+      "red": "red",
+      "blue": "blue",
+      "green": "green",
+      "brown": "chocolate",
+      "purple": "purple",
+      "purple_exp": "purple_exp",
+      "yellow": "yellow",
+      "pink": "pink",
+      "orange": "orange"
+    },
     "tables": {
       "station_order": {
         "local_dir": "rail_station_orders/cta.csv",

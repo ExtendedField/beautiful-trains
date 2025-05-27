@@ -23,6 +23,7 @@ table_info = city_info["tables"]
 # below block will expand as new apis are added
 if city_info["client_api"] == "socrata":
     from sodapy import Socrata
+
     client = Socrata(city_info["website"], city_info["token"])
 else:
     raise Exception("Unknown client id. Please try another")
@@ -47,7 +48,9 @@ tables = [
 ]
 transit_metadata.create_all(engine)
 for table in tables:
-    if table.name == "efficiency_stats": # one day flag this as creating an empty table rather than hardcoding
+    if (
+        table.name == "efficiency_stats"
+    ):  # one day flag this as creating an empty table rather than hardcoding
         add_to_db(city, table, engine, client)
     else:
         table_id = city_info["tables"][table.name]["remote_table_id"]
