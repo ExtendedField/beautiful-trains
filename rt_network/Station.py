@@ -2,7 +2,7 @@ class Station:
     """A data structure for station information within the urban rapid transit network"""
 
     name = None  # string name of station
-    colors = None #colors of lines at station
+    colors = None  # colors of lines at station
     network_id = None
     location = (
         None  # lat and long coordinates save in standard (x,y) format for plotting
@@ -18,7 +18,7 @@ class Station:
         if not (isinstance(net_id, int) or isinstance(net_id, int64)):
             raise Exception("Please provide an integer as your station ID")
 
-        self.colors=list(colors)
+        self.colors = list(colors)
         self.network_id = int(net_id)
         self.name = str(name)
         self.location = tuple(location)

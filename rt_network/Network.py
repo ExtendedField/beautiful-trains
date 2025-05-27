@@ -36,13 +36,15 @@ class Network:
     def __str__(self):
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
 
-# implement a voronoi cell plotting function once all nodes are added rather than just rail
-    def plot_map(self,
-                 new_conn=False,
-                 optimization_stat="mean_shortest_path_length",
-                 asc=True,
-                 conn_number=10,
-                 style='light') -> None:
+    # implement a voronoi cell plotting function once all nodes are added rather than just rail
+    def plot_map(
+        self,
+        new_conn=False,
+        optimization_stat="mean_shortest_path_length",
+        asc=True,
+        conn_number=10,
+        style="light",
+    ) -> None:
         """A Method to plot the RT network as a visio-spacial graph"""
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -96,16 +98,13 @@ class Network:
             )
             line_traces[line] = (edge_trace, node_trace)
 
-
         # center location
         lon, lat = nx.barycenter(self.graph)[0].location
-        center = dict(lat=lat,lon=lon)
+        center = dict(lat=lat, lon=lon)
 
         fig = go.Figure(
             layout=go.Layout(
-                title=dict(
-                    text=f"<br>{self.city}", font=dict(size=16)
-                ),
+                title=dict(text=f"<br>{self.city}", font=dict(size=16)),
                 showlegend=False,
                 hovermode="closest",
                 margin=dict(b=20, l=5, r=5, t=40),
@@ -119,17 +118,14 @@ class Network:
                         y=-0.002,
                     )
                 ],
-                map=dict(center=center,
-                         zoom=10,
-                         bearing=0,
-                         pitch=0,
-                         style=style)
+                map=dict(center=center, zoom=10, bearing=0, pitch=0, style=style),
             ),
         )
         if new_conn:
             from sqlalchemy import create_engine, select
             import pickle
             import pandas as pd
+
             passwd = "conductor"  # encrypt somewhere buddy...
             engine = create_engine(
                 f"postgresql://transitdb_user:{passwd}@localhost/{self.city}_transitdb"
@@ -141,17 +137,36 @@ class Network:
                 transit_metadata = pickle.load(f)
 
             with engine.connect() as conn:
-                efficiency_stats=transit_metadata.tables["efficiency_stats"]
+                efficiency_stats = transit_metadata.tables["efficiency_stats"]
                 if asc:
-                    query = select(efficiency_stats.c["station1", "station2", optimization_stat]).order_by(
-                        efficiency_stats.c[optimization_stat].asc()).limit(conn_number)
+                    query = (
+                        select(
+                            efficiency_stats.c[
+                                "station1", "station2", optimization_stat
+                            ]
+                        )
+                        .order_by(efficiency_stats.c[optimization_stat].asc())
+                        .limit(conn_number)
+                    )
                 else:
-                    query = select(efficiency_stats.c["station1", "station2", optimization_stat]).order_by(
-                        efficiency_stats.c[optimization_stat].desc()).limit(conn_number)
+                    query = (
+                        select(
+                            efficiency_stats.c[
+                                "station1", "station2", optimization_stat
+                            ]
+                        )
+                        .order_by(efficiency_stats.c[optimization_stat].desc())
+                        .limit(conn_number)
+                    )
 
                 best_conns = pd.DataFrame(conn.execute(query))
                 for col in ["station1", "station2"]:
-                    best_conns.loc[:,col] = [stop for stop in self.stations for station in best_conns.loc[:,col] if str(stop) == station]
+                    best_conns.loc[:, col] = [
+                        stop
+                        for stop in self.stations
+                        for station in best_conns.loc[:, col]
+                        if str(stop) == station
+                    ]
 
             edge_x = []
             edge_y = []

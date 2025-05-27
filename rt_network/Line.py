@@ -1,12 +1,14 @@
 class Line:
 
     name = ""  # usually a color or letter. "green line" or "M line" for example
-    color=""
+    color = ""
     stations = set()
     connections = set()
     line_graph = None
 
-    def __init__(self, stations=None, connections=None, name=None, color=None, weighted=False):
+    def __init__(
+        self, stations=None, connections=None, name=None, color=None, weighted=False
+    ):
         import networkx as nx
 
         if stations is None:
