@@ -16,21 +16,42 @@
       "orange": "orange"
     },
     "tables": {
-      "station_order": {
+      "train_station_order": {
         "local_dir": "rail_station_orders/cta.csv",
-        "remote_table_id": null
+        "remote_table_id": null,
+        "query_params": null
       },
-      "stations": {
+      "train_stations": {
         "local_dir": null,
-        "remote_table_id": "8pix-ypme"
+        "remote_table_id": "8pix-ypme",
+        "query_params": null
       },
       "rider_data": {
         "local_dir": null,
-        "remote_table_id": "5neh-572f"
+        "remote_table_id": "5neh-572f",
+        "query_params": null
       },
       "driver_data": {
         "local_dir": null,
-        "remote_table_id": null
+        "remote_table_id": null,
+        "query_params": null
+      },
+      "train_line_shapes": {
+        "local_dir": null,
+        "remote_table_id": "xbyr-jnvx",
+        "query_params": null
+      },
+      "bus_stations": {
+        "local_dir": null,
+        "remote_table_id": "6uva-a5ei",
+        "query_params": null
+      },
+      "streets": {
+        "local_dir": null,
+        "remote_table_id": "pr57-gg9e",
+        "query_params": {
+          "select": "OBJECTID, STREET_NAM, STREET_TYP, CLASS, the_geom, LENGTH"
+        }
       }
     }
   }

@@ -58,6 +58,9 @@ with engine.connect() as conn:
     avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
     query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
     daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
+    train_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
+    bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stations"])))
+    streets = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
 
 # build network object
 # get list of stations

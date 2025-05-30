@@ -4,6 +4,9 @@ class Network:
     connections = set()
     stations = set()
     graph = None
+    rail_shapes = None
+    bus_route_shapes = None
+    street_shapes = None
 
     def __init__(self, city=None, lines=None):
         import networkx as nx

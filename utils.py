@@ -37,14 +37,16 @@ def add_to_db(
     table_id=None,
     source_csv=None,
     source_df=None,
-    refresh=False,
-    **query_params,
+    query_params=None,
 ):
     """
     If requested data does not exist in the database, this downloads it and adds it to the db
     """
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy import delete
+
+    if query_params is None:
+        query_params = {}
 
     table_name = table.name
 
@@ -61,27 +63,26 @@ def add_to_db(
             chunk_size = 999  # socrata only allows 1k rows per request.
             num_chunks = round(num_rows / chunk_size) + 1
             offsets = [chunk_size * x for x in range(num_chunks)]
+            sleep(0.01) # trying to resolve timeout between large table fetches
             data = client.get(table_id, offset=offsets[0], **query_params)
             if len(offsets) > 1:
-                for offset in tqdm(offsets):  # add [-100:] to avoid throttling for now
+                for offset in tqdm(offsets):
                     data.extend(client.get(table_id, offset=offset, **query_params))
-                    sleep(
-                        0.01
-                    )  # if API calls are made too frequently, not all data will be fetched.
+                    # if API calls are made too frequently, not all data will be fetched.
+                    sleep(0.05)
             print("Data Downloaded.")
         except:
-            # maybe make this more informative
             raise Exception("Unable to fetch data. Check table key in city_info.json")
+        # Sodapy appears to skip null values when pulling from table.
+        # converting to a DF as an intermediate resolves the issue.
+        data = pd.DataFrame(data)
     elif source_csv:
         path = f"data/{source_csv}"
         data = pd.read_csv(path)
-        if table.name == "station_order":
+        if table.name == "train_station_order":
             data["order"] = data["order"].str.split(",")
-        data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
     elif source_df is not None:
-        data = [
-            row.to_dict() for i, row in source_df.iterrows()
-        ]  # convert to list of dicts
+        data = source_df
     else:
         print(
             f"No table_id, source_csv, or source_df given. Table: {table_name} will be left empty."
@@ -90,26 +91,22 @@ def add_to_db(
     print(f"Writing to table: {city}_transitdb.{table_name}")
     import numpy as np
 
-    data = np.array(data)
-
+    data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
+    print(data)
     print(f"Saving data to table: {table_name}")
     with engine.connect() as conn:
-        if refresh:
-            query = delete(table)
-            conn.execute(query)
         for row in data:
             # repackages data with specified schema names instead of schema defined by the transit org
             renamed_row = dict(zip(table.c.keys(), row.values()))
             query = (
                 insert(table)
-                .values(tuple(row.values()))
+                .values(renamed_row)
                 .on_conflict_do_update(
                     index_elements=table.primary_key, set_=renamed_row
                 )
             )
             conn.execute(query)
         conn.commit()
-
 
 def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:

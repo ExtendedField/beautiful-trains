@@ -13,32 +13,14 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 # schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
 schemas = {
-    "rider_data": {
-        "station_id": {
-            "type": Integer,
-            "params": {"args": [], "kwargs": {"primary_key": True}},
-        },
-        "station_name": {
-            "type": String,
-            "params": {
-                "args": [],
-                "kwargs": {
-                    "nullable": False,
-                },
-            },
-        },
-        "date": {"type": Date, "params": {"args": [], "kwargs": {"primary_key": True}}},
-        "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
-        "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-    },
-    "station_order": {
+    "train_station_order": {
         "line": {
             "type": String,
             "params": {"args": [], "kwargs": {"primary_key": True}},
         },
         "order": {"type": ARRAY(Integer), "params": {"args": [], "kwargs": {}}},
     },
-    "stations": {
+    "train_stations": {
         "stop_id": {
             "type": Integer,
             "params": {"args": [], "kwargs": {"primary_key": True}},
@@ -74,11 +56,84 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    # "train_timings":{
-    #     "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-    #     "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
-    #     "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
-    # }, # uncomment when data is located
+    "train_line_shapes":{
+        "geometry": {
+            "type": JSON, #might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "lines": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "description": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "type": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "legend": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "shape_len": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "bus_stations":{
+        "geometry": {
+            "type": JSON, #might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "route": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "weekday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "saturday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "sunday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "streets":{
+        "section_id": {
+            "type": Integer,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "street_name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "street_type": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "class": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "geometry": {
+            "type": JSON, #might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "length": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
     "efficiency_stats": {
         "station1": {
             "type": String,
@@ -111,4 +166,27 @@ schemas = {
         # "smallworld_sigma": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
         # "smallworld_omega": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
     },
+    "rider_data": {
+        "station_id": {
+            "type": Integer,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "station_name": {
+            "type": String,
+            "params": {
+                "args": [],
+                "kwargs": {
+                    "nullable": False,
+                },
+            },
+        },
+        "date": {"type": Date, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
+        "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+    },
+    # "train_timings":{
+    #     "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
+    #     "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
+    #     "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
+    # }, # uncomment when data is located
 }
