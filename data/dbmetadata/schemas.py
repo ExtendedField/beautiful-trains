@@ -82,7 +82,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "bus_stations":{
+    "bus_route_shapes":{
         "geometry": {
             "type": JSON, #might need string instead
             "params": {"args": [], "kwargs": {}},
@@ -135,11 +135,11 @@ schemas = {
         },
     },
     "efficiency_stats": {
-        "station1": {
+        "node1": {
             "type": String,
             "params": {"args": [], "kwargs": {"primary_key": True}},
         },
-        "station2": {
+        "node2": {
             "type": String,
             "params": {"args": [], "kwargs": {"primary_key": True}},
         },

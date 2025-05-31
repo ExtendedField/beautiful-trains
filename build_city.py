@@ -1,7 +1,7 @@
 import pandas as pd
 
 # consider storing all these classes in on file since they are rather compact presently
-from rt_network.Station import Station
+from rt_network.Node import Node
 from rt_network.Connection import Connection
 from rt_network.Line import Line
 from rt_network.Network import Network
@@ -10,7 +10,6 @@ from utils import add_to_db
 import pickle
 import argparse
 from utils import read_city_json
-from ast import literal_eval
 import numpy as np
 from sqlalchemy import create_engine, select, func
 import networkx as nx
@@ -42,32 +41,33 @@ with open(filedir, "rb") as f:
     transit_metadata = pickle.load(f)
 
 with engine.connect() as conn:
-    stations_db = transit_metadata.tables["stations"]
+    train_stations_db = transit_metadata.tables["train_stations"]
     line_aggs = []
     for line in city_info["lines"].keys():
-        line_aggs.append(func.bool_or(stations_db.c[line]).label(line))
-    location_func = func.max(stations_db.c.location).label("location")
+        line_aggs.append(func.bool_or(train_stations_db.c[line]).label(line))
+    location_func = func.array_agg(train_stations_db.c.location)[1].label("location")
     query = select(
-        stations_db.c["station_name", "map_id"], location_func, *line_aggs
-    ).group_by(stations_db.c["station_name", "map_id"])
-    stations = pd.DataFrame(conn.execute(query))
+        train_stations_db.c["station_name", "map_id"], location_func, *line_aggs
+    ).group_by(train_stations_db.c["station_name", "map_id"])
+    train_stations = pd.DataFrame(conn.execute(query))
     station_order = pd.DataFrame(
-        conn.execute(select(transit_metadata.tables["station_order"]))
+        conn.execute(select(transit_metadata.tables["train_station_order"]))
     ).set_index("line")
     rider_data = transit_metadata.tables["rider_data"]
     avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
     query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
-    daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
+    daily_rail_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
     train_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
-    bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stations"])))
+    bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
     streets = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
 
 # build network object
-# get list of stations
-station_set = set()
-for stop_id in stations.map_id.unique():
-    curr_stop = stations[stations.map_id == stop_id].iloc[0]
-    raw_location = literal_eval(curr_stop.location)
+# get list of nodes
+node_set = set()
+#rail
+for stop_id in train_stations.map_id.unique():
+    curr_stop = train_stations[train_stations.map_id == stop_id].iloc[0]
+    raw_location = curr_stop.location
     # the below order was chosen to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
@@ -80,9 +80,13 @@ for stop_id in stations.map_id.unique():
         for line in city_info["lines"].keys()
         if line in available_lines
     ]
-    station_set.add(
-        Station(stop_id, curr_stop.station_name, location, available_lines, colors)
+    node_set.add(
+        Node(stop_id, curr_stop.station_name, location, available_lines, colors)
     )
+#bus stops
+
+
+#street intersections
 
 # build lines
 # create list of connections for each line
@@ -93,23 +97,23 @@ for (
     station_order.index
 ):  # cant use "lines" here because the lines may have different names
     id_list = station_order.loc[line, "order"]
+    # generate connections potentially by using trace data and coord lists?
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
         station1 = {
-            station for station in station_set if station.network_id == station_id
+            station for station in node_set if station.network_id == station_id
         }.pop()
         station2 = {
-            station for station in station_set if station.network_id == id_list[ind + 1]
+            station for station in node_set if station.network_id == id_list[ind + 1]
         }.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {
         station
-        for station in station_set
+        for station in node_set
         if any([lyne in line for lyne in station.lines])
     }
-    true_line = [l for l in city_info["lines"].keys() if l in line][
-        0
-    ]  # resolves multiple endpoint issue
+    # resolves multiple endpoint issue
+    true_line = [l for l in city_info["lines"].keys() if l in line][0]
     line_color = city_info["lines"][true_line]
     line_objects.add(
         Line(stations_in_line, connections, line, line_color, weighted=True)
@@ -122,26 +126,10 @@ print("Network created.")
 
 if include_data:
     # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-    def weighted_shortest_path(g, boardings, weight="distance"):
-        nodes = list(g)
-        index = sorted([node.network_id for node in nodes])
-        boardings = boardings[boardings.index.isin(index)]
-        total_boardings = float(boardings.avg_rides.sum())
-
-        path_lengths = pd.DataFrame(dict(nx.shortest_path_length(g, weight=weight)))
-        path_lengths.index = [i.network_id for i in path_lengths.index]
-        path_lengths.columns = [i.network_id for i in path_lengths.columns]
-        path_lengths = path_lengths.sort_index().sort_index(axis=1)
-        return (
-            np.matmul(
-                np.diag(boardings.to_numpy().flatten()).astype("float"),
-                path_lengths,
-            ).sum()
-            / total_boardings
-        ).mean()
+    from utils import weighted_shortest_path
 
     # create a list of all connections that do not exist in graph (between lines only)
-    print("Fetching weighted average path lengths for all possible new connections...")
+    print("Fetching summary stats for all possible new connections...")
     net_complement = nx.complement(transport_network.graph)
     potential_new_connections = [
         edge
@@ -154,41 +142,41 @@ if include_data:
         columns=[
             col
             for col in transit_metadata.tables["efficiency_stats"].c.keys()
-            if "station" not in col
-        ],  # removing index stations for later
+            if "node" not in col
+        ],  # removing index nodes for later
     )
     for connection in tqdm(potential_new_connections):
-        station1, station2 = connection
+        node1, node2 = connection
         new_conn = Connection(
-            station1, station2
-        )  # this is necessary as nx.compliment does not calculate edge distance
+            node1, node2
+        )
         improved_g = transport_network.graph.copy()
+        improved_g.add_edge(node1, node2, travel_resistance=new_conn.travel_resistance)
 
-        improved_g.add_edge(station1, station2, distance=new_conn.distance)
-
+        weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.
         efficiency_stats.loc[connection, "mean_shortest_path_length"] = (
-            nx.average_shortest_path_length(improved_g, weight="distance")
+            nx.average_shortest_path_length(improved_g, weight=weight)
         )
         efficiency_stats.loc[connection, "weighted_shortest_path"] = (
-            weighted_shortest_path(improved_g, daily_boardings, weight="distance")
+            weighted_shortest_path(improved_g, daily_rail_boardings, weight=weight)
         )
         efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(
             improved_g
         )
         efficiency_stats.loc[connection, "barycenter"] = [
-            str(center) for center in nx.barycenter(improved_g, weight="distance")
+            str(center) for center in nx.barycenter(improved_g, weight=weight)
         ]
         efficiency_stats.loc[connection, "eccentricity"] = [
-            float(i) for i in nx.eccentricity(improved_g, weight="distance").values()
+            float(i) for i in nx.eccentricity(improved_g, weight=weight).values()
         ]
         efficiency_stats.loc[connection, "avg_clustering"] = nx.average_clustering(
-            improved_g, weight="distance"
+            improved_g, weight=weight
         )  # potentially more sensible to do this at the node level to detect neighborhoods
         efficiency_stats.loc[connection, "effective_graph_resistance"] = (
-            nx.effective_graph_resistance(improved_g, weight="distance")
+            nx.effective_graph_resistance(improved_g, weight=weight)
         )
-        page_dict = nx.pagerank(improved_g, weight="distance")
+        page_dict = nx.pagerank(improved_g, weight=weight)
         efficiency_stats.loc[connection, "pagerank"] = str(
             dict(zip([str(key) for key in page_dict.keys()], page_dict.values()))
         )
@@ -199,10 +187,10 @@ if include_data:
 
     print("Adding network stats to DB...")
     efficiency_stats = efficiency_stats.reset_index().rename(
-        columns={"level_0": "station1", "level_1": "station2"}
+        columns={"level_0": "node1", "level_1": "node2"}
     )
-    efficiency_stats.loc[:, ["station1", "station2"]] = efficiency_stats.loc[
-        :, ["station1", "station2"]
+    efficiency_stats.loc[:, ["node1", "node2"]] = efficiency_stats.loc[
+        :, ["node1", "node2"]
     ].astype(str)
     add_to_db(
         "chicago",

@@ -1,6 +1,5 @@
-class Station:
+class Node:
     """A data structure for station information within the urban rapid transit network"""
-
     name = None  # string name of station
     colors = None  # colors of lines at station
     network_id = None

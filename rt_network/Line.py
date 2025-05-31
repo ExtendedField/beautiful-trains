@@ -33,7 +33,7 @@ class Line:
             [connection.get_connection_tuple(weighted) for connection in connections]
         )
 
-        # remove legacy stations with no connections
+        # remove inactive stations with no connections
         active_stations = [connection.station1 for connection in self.connections] + [
             connection.station2 for connection in self.connections
         ]

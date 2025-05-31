@@ -1,7 +1,7 @@
 class Connection:
     station1 = None
     station2 = None
-    distance = 1
+    travel_resistance = 1 # heuristic for travel time. Usually wil be proportional to distance for now.
     max_speed = None  # TODO: add max_speeed to all connections based on speed zones
 
     def __init__(self, station1=None, station2=None, exists=False):
@@ -17,7 +17,7 @@ class Connection:
 
         x_dist = long1 - long2
         y_dist = (lat1 - lat2) * cos(long2)
-        self.distance = deglen * sqrt(
+        self.travel_resistance = deglen * sqrt(
             x_dist**2 + y_dist**2
         )  # Euclidean distance. maybe parameterize? probably not
 
@@ -26,6 +26,6 @@ class Connection:
 
     def get_connection_tuple(self, weighted=False):
         if weighted:
-            return self.station1, self.station2, {"distance": self.distance}
+            return self.station1, self.station2, {"travel_resistance": self.travel_resistance}
         else:
             return self.station1, self.station2

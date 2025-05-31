@@ -2,6 +2,8 @@ import pandas as pd
 import json
 from tqdm import tqdm
 from time import sleep
+import numpy as np
+import networkx as nx
 
 
 def build_table(metadata, table_name, schema):
@@ -43,7 +45,6 @@ def add_to_db(
     If requested data does not exist in the database, this downloads it and adds it to the db
     """
     from sqlalchemy.dialects.postgresql import insert
-    from sqlalchemy import delete
 
     if query_params is None:
         query_params = {}
@@ -63,7 +64,7 @@ def add_to_db(
             chunk_size = 999  # socrata only allows 1k rows per request.
             num_chunks = round(num_rows / chunk_size) + 1
             offsets = [chunk_size * x for x in range(num_chunks)]
-            sleep(0.01) # trying to resolve timeout between large table fetches
+            sleep(0.5) # trying to resolve timeout between large table fetches
             data = client.get(table_id, offset=offsets[0], **query_params)
             if len(offsets) > 1:
                 for offset in tqdm(offsets):
@@ -89,13 +90,11 @@ def add_to_db(
         )
         return
     print(f"Writing to table: {city}_transitdb.{table_name}")
-    import numpy as np
 
     data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
-    print(data)
     print(f"Saving data to table: {table_name}")
     with engine.connect() as conn:
-        for row in data:
+        for row in tqdm(data):
             # repackages data with specified schema names instead of schema defined by the transit org
             renamed_row = dict(zip(table.c.keys(), row.values()))
             query = (
@@ -112,6 +111,60 @@ def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
 
+def weighted_shortest_path(g, boardings, weight="travel_resistance"):
+    nodes = list(g)
+    index = sorted([node.network_id for node in nodes])
+    boardings = boardings[boardings.index.isin(index)]
+    total_boardings = float(boardings.avg_rides.sum())
+
+    path_lengths = pd.DataFrame(dict(nx.shortest_path_length(g, weight=weight)))
+    path_lengths.index = [i.network_id for i in path_lengths.index]
+    path_lengths.columns = [i.network_id for i in path_lengths.columns]
+    path_lengths = path_lengths.sort_index().sort_index(axis=1)
+    return (
+        np.matmul(
+            np.diag(boardings.to_numpy().flatten()).astype("float"),
+            path_lengths,
+        ).sum()
+        / total_boardings
+    ).mean()
+
+
+def gen_trace(trace_type, line_width, color, geom_data):
+    """
+    trace_type: 'line' or 'marker'
+    line_width: float value of the desired line width
+    color: line color
+    geom_data: list[list[list]] list of segments, which are themselves lists of coordinates
+               or list[list] of coordinates.
+    """
+    from plotly import graph_objects as go
+    edge_x = []
+    edge_y = []
+    if trace_type =='lines':
+        for segment in geom_data:
+            if len(segment) > 0:
+                for coord in segment:
+                    lon = coord[0]
+                    lat = coord[1]
+                    edge_x.append(lon)
+                    edge_y.append(lat)
+                edge_x.append(None)
+                edge_y.append(None)
+    else:
+        for coord in geom_data:
+            lon = coord[0]
+            lat = coord[1]
+            edge_x.append(lon)
+            edge_y.append(lat)
+
+    return go.Scattermap(
+        lat=edge_y,
+        lon=edge_x,
+        line=dict(width=line_width, color=color),
+        hoverinfo="none",
+        mode=trace_type,
+    )
 
 def project(lam, phi, proj="mercator", deg=True):
     """

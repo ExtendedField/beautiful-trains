@@ -10,7 +10,7 @@
       "green": "green",
       "brown": "chocolate",
       "purple": "purple",
-      "purple_exp": "purple_exp",
+      "purple_exp": "purple",
       "yellow": "yellow",
       "pink": "pink",
       "orange": "orange"
@@ -41,7 +41,7 @@
         "remote_table_id": "xbyr-jnvx",
         "query_params": null
       },
-      "bus_stations": {
+      "bus_route_shapes": {
         "local_dir": null,
         "remote_table_id": "6uva-a5ei",
         "query_params": null
