@@ -17,6 +17,11 @@ class Network:
             street_shapes=None
     ):
         import networkx as nx
+        import geopandas as gpd
+        from shapely import MultiLineString
+        import momepy as mp
+        from data.resistances import resistances
+        from rt_network.Node import Node
 
         if lines is None:
             lines = set()
@@ -39,12 +44,26 @@ class Network:
             for connections in connections_set
         }
 
+        # create intersection nodes and how they connect via streets
+        street_shapes.loc[:, "geometry"] = [MultiLineString(item["coordinates"]) for item in street_shapes.loc[:, "geometry"]]
+        streets = gpd.GeoDataFrame(street_shapes, geometry="geometry").explode()
+        street_g = mp.gdf_to_nx(streets)
+        mapping = dict()
+        for node in street_g:
+            mapping[node] = Node(location=node, node_type="street")
+        street_g = nx.relabel_nodes(street_g, mapping)
+        dists = nx.get_edge_attributes(street_g, name="len_mm")
+        for node_key in dists.keys():
+            # mm -> km * resistance factor for walking
+            dists[node_key] = float(dists[node_key]) / 1000000 * resistances["street"]
+        nx.set_edge_attributes(street_g, values=dists, name="travel_resistance")
+
         # create graph object
         graph = nx.Graph()
         line_graphs = {line.line_graph for line in lines}
         for lg in line_graphs:
             graph = nx.compose(graph, lg)
-        # TODO: add in shortest path walking connections here
+        graph = nx.compose(graph, street_g)
         self.graph = graph
 
     def __str__(self):

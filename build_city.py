@@ -85,9 +85,6 @@ for stop_id in train_stations.map_id.unique():
     )
 #bus stops
 
-
-#street intersections
-
 # build lines
 # create list of connections for each line
 line_objects = set()
@@ -121,7 +118,12 @@ for (
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
-transport_network = Network(city, line_objects)
+transport_network = Network(city,
+                            line_objects,
+                            rail_shapes=train_line_shapes,
+                            bus_route_shapes=bus_route_shapes,
+                            street_shapes=streets
+                            )
 print("Network created.")
 
 if include_data:
