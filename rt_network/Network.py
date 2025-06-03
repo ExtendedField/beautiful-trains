@@ -33,10 +33,6 @@ class Network:
         self.street_shapes = street_shapes
         self.city = city
         self.lines = lines
-        unpacked_stations = [line.stations for line in lines]
-        self.nodes = {
-            station for station_set in unpacked_stations for station in station_set
-        }
         unpacked_connections = [line.connections for line in lines]
         self.connections = {
             connections
@@ -65,11 +61,12 @@ class Network:
             graph = nx.compose(graph, lg)
         graph = nx.compose(graph, street_g)
         self.graph = graph
+        self.nodes = graph.nodes()
 
     def __str__(self):
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"
 
-    # implement a voronoi cell plotting function once all nodes are added rather than just rail
+    # TODO: implement a voronoi cell plotting function once all nodes are added rather than just rail
     def plot_map(
         self,
         new_conn=False,

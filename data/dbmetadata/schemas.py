@@ -108,6 +108,44 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
+    "bus_stops":{
+        "system_stop": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "public_name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "city": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "street": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "cross_street": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "available_routes": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "direction": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "position": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "geometry": {
+            "type": JSON,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
     "streets":{
         "section_id": {
             "type": Integer,

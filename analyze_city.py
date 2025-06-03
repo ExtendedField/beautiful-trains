@@ -47,16 +47,15 @@ node_traces = []
 line_traces = []
 
 with engine.connect() as conn:
-    streets_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
+    bus_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
 
 import geopandas as gpd
 from shapely import MultiLineString
 import momepy as mp
-import networkx as nx
 
-streets_data.loc[:,"geometry"] = [MultiLineString(item["coordinates"]) for item in streets_data.loc[:,"geometry"]]
-streets_data = gpd.GeoDataFrame(streets_data, geometry="geometry").explode()
-g = mp.gdf_to_nx(streets_data)
+bus_data.loc[:,"geometry"] = [MultiLineString(item["coordinates"]) for item in bus_data.loc[:,"geometry"]]
+bus_data = gpd.GeoDataFrame(bus_data, geometry="geometry").explode()
+g = mp.gdf_to_nx(bus_data)
 
 node_trace = gen_trace("markers", 1.5, "black", g.nodes())
 line_trace = gen_trace("lines", 1, "black", g.edges())

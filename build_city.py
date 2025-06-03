@@ -59,12 +59,13 @@ with engine.connect() as conn:
     daily_rail_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
     train_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
     bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+    bus_stops = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stops"])))
     streets = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
 
-# build network object
-# get list of nodes
 node_set = set()
-#rail
+line_objects = set()
+# build network object
+# rail
 for stop_id in train_stations.map_id.unique():
     curr_stop = train_stations[train_stations.map_id == stop_id].iloc[0]
     raw_location = curr_stop.location
@@ -84,10 +85,26 @@ for stop_id in train_stations.map_id.unique():
         Node(stop_id, curr_stop.station_name, location, available_lines, colors)
     )
 #bus stops
+bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bus_stops.available_routes]
+routes = {route for route_str in bus_stops.available_routes for route in route_str}
+for route in routes:
+    curr_route = bus_stops[route in bus_stops.available_routes]
+    # generate nodes
+    # for stop in route:
+    #   Node(net_id=station_id, name=public_name, location=geometry["coordinates"], lines=routes, colors="black", node_type="bus")
+    # generate lines
+    # [direction for direction in route.direction]
+    # return the most common (mode) direction for line
+    # order algos:
+    # NB/SB: order based on latitude
+    # EB/WB: order based on long
+    # NWB/SEB/NEB/SWB: calc diff between max/min long/lat. which ever has greatest delta, use to order
+    Line(stations=None, connections=None, name=route, color="black", weighted=True)
 
-# build lines
+# exit()
+
+# build rail lines
 # create list of connections for each line
-line_objects = set()
 for (
     line
 ) in (

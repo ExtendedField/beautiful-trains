@@ -70,7 +70,7 @@ def add_to_db(
                 for offset in tqdm(offsets):
                     data.extend(client.get(table_id, offset=offset, **query_params))
                     # if API calls are made too frequently, not all data will be fetched.
-                    sleep(0.05)
+                    sleep(0.1)
             print("Data Downloaded.")
         except:
             raise Exception("Unable to fetch data. Check table key in city_info.json")

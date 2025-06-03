@@ -14,9 +14,11 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("city_name")
 parser.add_argument("-r", "--refresh", action="store_true")
+parser.add_argument("--table")
 args = parser.parse_args()
 city = args.city_name
 refresh = args.refresh
+target_table = args.table
 
 city_info = read_city_json(city, "./data/city_info.json")
 table_info = city_info["tables"]
@@ -46,13 +48,14 @@ tables = [
     build_table(transit_metadata, table_name, schema)
     for table_name, schema in schemas.items()
 ]
+if target_table:
+    tables = [table for table in tables if table.name == target_table]
 if refresh:
     for table in tables:
         table.drop(engine)
-
 transit_metadata.create_all(engine)
 empty_tables = ["efficiency_stats"] # list of tables to be filled later
-for table in tables: # curiously times out during retrieval of last table. Not sure why...
+for table in tables:
     if table.name in empty_tables:
         add_to_db(city, table, engine, client)
     else:

@@ -46,6 +46,13 @@
         "remote_table_id": "6uva-a5ei",
         "query_params": null
       },
+      "bus_stops": {
+        "local_dir": null,
+        "remote_table_id": "qs84-j7wh",
+        "query_params": {
+          "select": "SYSTEMSTOP, PUBLIC_NAM, CITY, STREET, CROSS_ST, ROUTESSTPG, DIR, POS, the_geom"
+        }
+      },
       "streets": {
         "local_dir": null,
         "remote_table_id": "pr57-gg9e",
