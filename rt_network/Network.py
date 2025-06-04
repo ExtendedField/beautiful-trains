@@ -89,6 +89,7 @@ class Network:
         import pickle
         import pandas as pd
         from utils import gen_trace
+        from shapely import MultiLineString, Point
 
         passwd = "conductor"  # encrypt somewhere buddy...
         engine = create_engine(
@@ -106,11 +107,11 @@ class Network:
         with engine.connect() as conn:
             if streets:
                 streets_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
-                street_geoms = [seg for super_seg in [super_seg["coordinates"] for super_seg in streets_data.geometry] for seg in super_seg]
+                street_geoms = [MultiLineString(segment["coordinates"]) for segment in streets_data.geometry]
                 line_traces.append(gen_trace("lines",0.5, "grey", street_geoms))
             if bus:
                 bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
-                bus_geoms = [seg for super_seg in [super_seg["coordinates"] for super_seg in bus_route_shapes.geometry] for seg in super_seg]
+                bus_geoms = [MultiLineString(segment["coordinates"]) for segment in bus_route_shapes.geometry]
                 line_traces.append(gen_trace("lines", 1, "black", bus_geoms))
             if rail:
                 rail_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
@@ -120,7 +121,7 @@ class Network:
                     else:
                         line_name = line.lower().split(" ")[0]
                         line_color = [line for line in self.lines if line_name in line.name][0].color
-                    rail_geoms = [seg for super_seg in [line["coordinates"] for line in rail_line_shapes[rail_line_shapes.lines == line].geometry] for seg in super_seg]
+                    rail_geoms = [MultiLineString(line["coordinates"]) for line in rail_line_shapes[rail_line_shapes.lines == line].geometry]
                     line_traces.append(gen_trace("lines", 2, line_color, rail_geoms))
             if new_conn:
                 efficiency_stats = transit_metadata.tables["efficiency_stats"]

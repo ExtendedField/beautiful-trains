@@ -47,18 +47,22 @@ node_traces = []
 line_traces = []
 
 with engine.connect() as conn:
-    bus_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+    bus_routes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+    bus_stops = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stops"])))
 
-import geopandas as gpd
-from shapely import MultiLineString
-import momepy as mp
+import shapely as sp
 
-bus_data.loc[:,"geometry"] = [MultiLineString(item["coordinates"]) for item in bus_data.loc[:,"geometry"]]
-bus_data = gpd.GeoDataFrame(bus_data, geometry="geometry").explode()
-g = mp.gdf_to_nx(bus_data)
+bus_stops["available_routes"] = [route.split(",") for route in bus_stops["available_routes"]]
 
-node_trace = gen_trace("markers", 1.5, "black", g.nodes())
-line_trace = gen_trace("lines", 1, "black", g.edges())
+route = "76"
+mask = [route in row for row in bus_stops.available_routes]
+sample_route = bus_routes[bus_routes.route == route]
+sample_stops = bus_stops[mask]
+sample_route = sp.MultiLineString(sample_route["geometry"].iloc[0]["coordinates"])
+sample_stops = [sample_route.interpolate(sample_route.project(sp.Point(geom["coordinates"]))) for geom in sample_stops["geometry"]]
+
+node_trace = gen_trace("markers", 1.5, "black", sample_stops)
+line_trace = gen_trace("lines", 1, "black", sample_route)
 
 fig = go.Figure()
 fig.add_trace(node_trace)

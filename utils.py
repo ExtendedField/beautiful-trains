@@ -135,16 +135,16 @@ def gen_trace(trace_type, line_width, color, geom_data):
     trace_type: 'line' or 'marker'
     line_width: float value of the desired line width
     color: line color
-    geom_data: list[list[list]] list of segments, which are themselves lists of coordinates
-               or list[list] of coordinates.
+    geom_data: list[MultiLineString] list of shapely MultiLineString objects
+               or list[Point] shapely Point objects.
     """
     from plotly import graph_objects as go
     edge_x = []
     edge_y = []
     if trace_type =='lines':
-        for segment in geom_data:
-            if len(segment) > 0:
-                for coord in segment:
+        for segment in geom_data.geoms:
+            if ~segment.is_empty:
+                for coord in segment.coords:
                     lon = coord[0]
                     lat = coord[1]
                     edge_x.append(lon)
@@ -153,8 +153,8 @@ def gen_trace(trace_type, line_width, color, geom_data):
                 edge_y.append(None)
     else:
         for coord in geom_data:
-            lon = coord[0]
-            lat = coord[1]
+            lon = coord.x
+            lat = coord.y
             edge_x.append(lon)
             edge_y.append(lat)
 
