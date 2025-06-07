@@ -10,26 +10,27 @@ class Node:
     lines = None  # list of strings corresponding to line names present at station
 
     def __init__(self, net_id=None, name="", location=(0, 0), lines=None, colors=None, node_type="street"):
-        from numpy import int64
+        from shapely import Point
 
         if lines is None:
             lines = []
 
-        if not (isinstance(net_id, int) or isinstance(net_id, int64)):
-            raise Exception("Please provide an integer as your station ID")
-
         self.node_type = node_type
-        self.colors = list(colors)
-        self.network_id = int(net_id)
+        if colors is None:
+            self.colors = list()
+        else:
+            self.colors = list(colors)
+
+        self.network_id = net_id
         self.name = str(name)
-        self.location = tuple(location)
+        self.location = Point(location)
         self.lines = list(lines)
 
     def __str__(self):
         return f"{self.name}: {", ".join(self.lines)}"
 
     def lat(self):
-        return self.location[1]
+        return self.location.y
 
     def long(self):
-        return self.location[0]
+        return self.location.x

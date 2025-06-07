@@ -5,9 +5,16 @@ class Line:
     stations = set()
     connections = set()
     line_graph = None
+    line_type = ""
 
     def __init__(
-        self, stations=None, connections=None, name=None, color=None, weighted=False
+            self,
+            stations=None,
+            connections=None,
+            name=None,
+            color=None,
+            weighted=False,
+            line_type=None,
     ):
         import networkx as nx
 
@@ -18,6 +25,10 @@ class Line:
         if connections is None:
             connections = set()
         self.connections = connections
+
+        if line_type is None:
+            line_type = ""
+        self.line_type = line_type
 
         if name is None:
             name = ""

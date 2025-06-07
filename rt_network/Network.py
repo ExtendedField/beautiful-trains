@@ -46,20 +46,19 @@ class Network:
         street_g = mp.gdf_to_nx(streets)
         mapping = dict()
         for node in street_g:
-            mapping[node] = Node(location=node, node_type="street")
+            mapping[node] = Node(colors="grey", location=node, node_type="street")
         street_g = nx.relabel_nodes(street_g, mapping)
-        dists = nx.get_edge_attributes(street_g, name="len_mm")
-        for node_key in dists.keys():
+        dists = nx.get_edge_attributes(street_g, name="mm_len")
+        for edge_key in dists.keys():
             # mm -> km * resistance factor for walking
-            dists[node_key] = float(dists[node_key]) / 1000000 * resistances["street"]
+            dists[edge_key] = float(dists[edge_key]) * 1000 * resistances["street"]
         nx.set_edge_attributes(street_g, values=dists, name="travel_resistance")
 
         # create graph object
-        graph = nx.Graph()
+        graph = street_g
         line_graphs = {line.line_graph for line in lines}
         for lg in line_graphs:
-            graph = nx.compose(graph, lg)
-        graph = nx.compose(graph, street_g)
+            graph.update(lg)
         self.graph = graph
         self.nodes = graph.nodes()
 
@@ -76,7 +75,8 @@ class Network:
         style="light",
         rail=True,
         bus=True,
-        streets=True
+        streets=True,
+        #TODO: add a way to either plot the "true" paths or the graph primitive for testing, illustration
     ) -> None:
         """
         A function to plot a cities rapid transit network as an image, optionally adding in recommended new

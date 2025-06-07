@@ -14,6 +14,13 @@ import numpy as np
 from sqlalchemy import create_engine, select, func
 import networkx as nx
 from tqdm import tqdm
+from shapely import(
+    line_merge,
+    MultiLineString,
+    Point,
+    LineString,
+    line_locate_point
+)
 
 # pass in city
 parser = argparse.ArgumentParser(
@@ -86,22 +93,73 @@ for stop_id in train_stations.map_id.unique():
     )
 #bus stops
 bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bus_stops.available_routes]
-routes = {route for route_str in bus_stops.available_routes for route in route_str}
-for route in routes:
-    curr_route = bus_stops[route in bus_stops.available_routes]
-    # generate nodes
-    # for stop in route:
-    #   Node(net_id=station_id, name=public_name, location=geometry["coordinates"], lines=routes, colors="black", node_type="bus")
-    # generate lines
-    # [direction for direction in route.direction]
-    # return the most common (mode) direction for line
-    # order algos:
-    # NB/SB: order based on latitude
-    # EB/WB: order based on long
-    # NWB/SEB/NEB/SWB: calc diff between max/min long/lat. which ever has greatest delta, use to order
-    Line(stations=None, connections=None, name=route, color="black", weighted=True)
+routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
+#removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
+valid_routes = set(bus_route_shapes.route).intersection(routes)
+for route in valid_routes:
+    curr_route = bus_route_shapes[bus_route_shapes.route == route]
+    mask = [(route in route_lst) for route_lst in bus_stops.available_routes]
+    curr_stops = bus_stops[mask]
+    # instead of one big line. make connections based on sub line strings and connect them together.
+    # could do loop detection or otherwise.
+    curr_route = line_merge(MultiLineString(curr_route["geometry"].iloc[0]["coordinates"]))
 
-# exit()
+    stop_y = [geom["coordinates"][0] for geom in curr_stops.geometry]
+    stop_x = [geom["coordinates"][1] for geom in curr_stops.geometry]
+    diff = lambda x: abs(max(x)) - abs(min(x))
+    if diff(stop_y)>diff(stop_x):
+        order = lambda z: z[0]
+    else:
+        order = lambda z: z[1]
+    route_shape = LineString([coord for linestring in curr_route.geoms for coord in sorted(linestring.coords, key=order)])
+    stop_locations = [
+        (
+            line_locate_point(route_shape, Point(row.geometry["coordinates"])),
+            row.system_stop
+        )
+        for i, row in curr_stops.iterrows()
+    ]
+
+    stop_dists = dict()
+    # extract stop order from distance along predefined bus route path
+    for stop in stop_locations:
+        stop_dists[stop] = route_shape.interpolate(stop[0])
+
+    stop_order = []
+    for key in sorted(stop_dists.keys()):
+        curr_stop = curr_stops[curr_stops.system_stop == key[1]]
+        stop_order.append(
+            Node(
+                net_id=int(curr_stop.system_stop.iloc[0]),
+                name=curr_stop.public_name,
+                location=stop_dists[key].coords[0],
+                lines=curr_stop.available_routes,
+                colors="black",
+                node_type="bus"
+            )
+        )
+
+    # build graph for selected route
+    route_connections = set()
+    for i, stop in enumerate(stop_order[:-1]):
+        route_connections.add(
+            Connection(
+                station1=stop,
+                station2=stop_order[i + 1],
+                conn_type="bus"
+            )
+        )
+    line_objects.add(
+        Line(
+            stations=stop_order,
+            connections=route_connections,
+            name=route,
+            color="black",
+            weighted=True,
+            line_type="bus"
+        )
+    )
+
 
 # build rail lines
 # create list of connections for each line
@@ -130,7 +188,7 @@ for (
     true_line = [l for l in city_info["lines"].keys() if l in line][0]
     line_color = city_info["lines"][true_line]
     line_objects.add(
-        Line(stations_in_line, connections, line, line_color, weighted=True)
+        Line(stations_in_line, connections, line, line_color, weighted=True, line_type="rail")
     )
 
 print(f"Generating {city}'s Rapid Transit Network object...")

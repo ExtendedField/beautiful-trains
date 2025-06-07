@@ -25,7 +25,7 @@ class Connection:
         # Euclidean distance.
         self.travel_resistance = deglen * sqrt( # kms
             x_dist**2 + y_dist**2
-        )  * resistances[type]
+        )  * resistances[conn_type]
 
     def __str__(self):
         return f"{self.station1.name}<->{self.station2.name}"
