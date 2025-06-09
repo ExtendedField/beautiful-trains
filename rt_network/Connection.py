@@ -13,7 +13,6 @@ class Connection:
 
         self.conn_type = conn_type
 
-
         long1 = self.station1.long()
         long2 = self.station2.long()
         lat1 = self.station1.lat()

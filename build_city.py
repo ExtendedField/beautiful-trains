@@ -15,11 +15,8 @@ from sqlalchemy import create_engine, select, func
 import networkx as nx
 from tqdm import tqdm
 from shapely import(
-    line_merge,
     MultiLineString,
     Point,
-    LineString,
-    line_locate_point
 )
 
 # pass in city
@@ -97,66 +94,81 @@ routes = {route for route_lst in bus_stops.available_routes for route in route_l
 #removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
 for route in valid_routes:
+    # this logic should be abstracted and used for rail lines as well.
     curr_route = bus_route_shapes[bus_route_shapes.route == route]
-    mask = [(route in route_lst) for route_lst in bus_stops.available_routes]
+    mask = [route in row for row in bus_stops.available_routes]
     curr_stops = bus_stops[mask]
-    # instead of one big line. make connections based on sub line strings and connect them together.
-    # could do loop detection or otherwise.
-    curr_route = line_merge(MultiLineString(curr_route["geometry"].iloc[0]["coordinates"]))
+    curr_route = MultiLineString(curr_route["geometry"].iloc[0]["coordinates"])
 
-    stop_y = [geom["coordinates"][0] for geom in curr_stops.geometry]
-    stop_x = [geom["coordinates"][1] for geom in curr_stops.geometry]
-    diff = lambda x: abs(max(x)) - abs(min(x))
-    if diff(stop_y)>diff(stop_x):
-        order = lambda z: z[0]
-    else:
-        order = lambda z: z[1]
-    route_shape = LineString([coord for linestring in curr_route.geoms for coord in sorted(linestring.coords, key=order)])
-    stop_locations = [
-        (
-            line_locate_point(route_shape, Point(row.geometry["coordinates"])),
-            row.system_stop
-        )
-        for i, row in curr_stops.iterrows()
-    ]
+    # determine which subline points correspond to
+    # projection does not place point exactly on the line. 'tolerance' can be tweaked to adjust
+    tolerance = 0.0000001
+    sublines = dict()
+    for line in curr_route.geoms:
+        sublines[line] = []
+        for i, stop in curr_stops.iterrows():
+            point = stop.geometry["coordinates"]
+            if curr_route.interpolate(curr_route.project(Point(point))).buffer(tolerance).intersects(line):
+                sublines[line].append(stop)
 
-    stop_dists = dict()
-    # extract stop order from distance along predefined bus route path
-    for stop in stop_locations:
-        stop_dists[stop] = route_shape.interpolate(stop[0])
-
-    stop_order = []
-    for key in sorted(stop_dists.keys()):
-        curr_stop = curr_stops[curr_stops.system_stop == key[1]]
-        stop_order.append(
-            Node(
-                net_id=int(curr_stop.system_stop.iloc[0]),
-                name=curr_stop.public_name,
-                location=stop_dists[key].coords[0],
-                lines=curr_stop.available_routes,
-                colors="black",
-                node_type="bus"
-            )
-        )
-
-    # build graph for selected route
     route_connections = set()
-    for i, stop in enumerate(stop_order[:-1]):
-        route_connections.add(
-            Connection(
-                station1=stop,
-                station2=stop_order[i + 1],
-                conn_type="bus"
-            )
+    route_stops = set()
+    end_points = set()
+    for line in sublines.keys():
+        order = sorted(
+            [
+                (  # order is important because sorted by default uses the first tuple value
+                    line.project(Point(stop.geometry["coordinates"])),
+                    Node(
+                        net_id=stop.system_stop,
+                        name=stop.public_name,
+                        location=Point(stop.geometry["coordinates"]),
+                        lines=stop.available_routes,
+                        colors="black",
+                        node_type="bus"
+                    )
+                )
+                for stop in sublines[line]
+            ],
+            key=lambda node: node[0]
         )
+        if len(order) > 0:
+            end_points = end_points.union({order[0][1], order[-1][1]})
+            route_stops = route_stops.union(set(order))
+            for i, item in enumerate(order[:-1]):
+                route_connections.add(
+                    Connection(
+                        station1=item[1],
+                        station2=order[i + 1][1],
+                        conn_type="bus"
+                    )
+                )
+
+    ep_distances = pd.DataFrame()
+    remaining_ep = end_points.copy()
+    for ep1 in end_points:
+        for ep2 in remaining_ep:
+            ep_distances.loc[ep1, ep2] = ep1.location.distance(ep2.location)
+        remaining_ep = remaining_ep.difference({ep1})
+
+    nonzero_dists = ep_distances[ep_distances != 0]
+    interconnections = pd.concat(
+        [
+            nonzero_dists.idxmin(skipna=True),
+            nonzero_dists.min()
+        ],
+        axis=1
+    ).sort_values(1, ascending=True).dropna()[:-2].iloc[:, 0]
+    for i, row in interconnections.reset_index().iterrows():
+        route_connections.add(Connection(row.values[0], row.values[1], conn_type='bus'))
+
     line_objects.add(
         Line(
-            stations=stop_order,
+            stations=route_stops,
             connections=route_connections,
             name=route,
             color="black",
-            weighted=True,
-            line_type="bus"
+            weighted=True
         )
     )
 
