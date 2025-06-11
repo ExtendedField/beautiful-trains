@@ -7,6 +7,8 @@ class Network:
     rail_shapes = None
     bus_route_shapes = None
     street_shapes = None
+    available_modes = set()
+    #potentially street, bus, and rail subgraph stored independently
 
     def __init__(
             self,
@@ -59,8 +61,12 @@ class Network:
         line_graphs = {line.line_graph for line in lines}
         for lg in line_graphs:
             graph.update(lg)
+
+        #TODO: connect graph layers here...
+
         self.graph = graph
         self.nodes = graph.nodes()
+        self.available_modes = {node.node_type for node in self.nodes}
 
     def __str__(self):
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"

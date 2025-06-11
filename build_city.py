@@ -86,14 +86,15 @@ for stop_id in train_stations.map_id.unique():
         if line in available_lines
     ]
     node_set.add(
-        Node(stop_id, curr_stop.station_name, location, available_lines, colors)
+        Node(stop_id, curr_stop.station_name, location, available_lines, colors, node_type='rail')
     )
 #bus stops
 bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bus_stops.available_routes]
 routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
 #removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
-for route in valid_routes:
+print("Detecting bus routes...")
+for route in tqdm(valid_routes):
     # this logic should be abstracted and used for rail lines as well.
     curr_route = bus_route_shapes[bus_route_shapes.route == route]
     mask = [route in row for row in bus_stops.available_routes]
@@ -151,13 +152,16 @@ for route in valid_routes:
             ep_distances.loc[ep1, ep2] = ep1.location.distance(ep2.location)
         remaining_ep = remaining_ep.difference({ep1})
 
-    nonzero_dists = ep_distances[ep_distances != 0]
+    nonzero_dists = ep_distances[ep_distances != 0].dropna(axis = 1, how='all')
     interconnections = pd.concat(
         [
             nonzero_dists.idxmin(skipna=True),
             nonzero_dists.min()
         ],
         axis=1
+    # removing the last two elements here strikes me as not the best approach. There could be a different number of
+    # hanging ends than two, which this would leave unconnected or over connect. I think a distance outlier based
+    # approach may be better.
     ).sort_values(1, ascending=True).dropna()[:-2].iloc[:, 0]
     for i, row in interconnections.reset_index().iterrows():
         route_connections.add(Connection(row.values[0], row.values[1], conn_type='bus'))
@@ -216,31 +220,41 @@ print("Network created.")
 if include_data:
     # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
     from utils import weighted_shortest_path
+    from itertools import product
+
 
     # create a list of all connections that do not exist in graph (between lines only)
     print("Fetching summary stats for all possible new connections...")
-    net_complement = nx.complement(transport_network.graph)
-    potential_new_connections = [
-        edge
-        for edge in net_complement.edges
-        if len(set(edge[0].lines) & set(edge[1].lines)) == 0
+    conn_lists = dict()
+    for node_type in transport_network.available_modes:
+        conn_lists[node_type] = [node for node in transport_network.nodes if node.node_type == node_type]
+    # streets direct to rail connections, rail to rail might be exhaustive for this approach.
+    print("Generating new potential connections from street to rail...")
+    street_to_rail = [
+        Connection(st1,st2,conn_type='rail')
+        for st1, st2 in tqdm(product(conn_lists['street'], conn_lists['rail']))
     ]
+    print("Generating new potential connections from rail to rail...")
+    rail_to_rail = [
+        Connection(st1,st2,conn_type='rail')
+        for st1, st2 in tqdm(product(conn_lists['rail'], conn_lists['rail']))
+        if len(set(st1.lines).intersection(set(st2.lines))) == 0
+    ]
+
+    potential_new_connections = [conn.get_connection_tuple(weighted=True) for conn in rail_to_rail+street_to_rail]
     # calculate statistics characterizing the network
     efficiency_stats = pd.DataFrame(
-        index=pd.MultiIndex.from_tuples(potential_new_connections),
+        index=pd.MultiIndex.from_tuples([(conn[0],conn[1]) for conn in potential_new_connections]),
         columns=[
             col
             for col in transit_metadata.tables["efficiency_stats"].c.keys()
             if "node" not in col
         ],  # removing index nodes for later
     )
-    for connection in tqdm(potential_new_connections):
-        node1, node2 = connection
-        new_conn = Connection(
-            node1, node2
-        )
+    for connection in tqdm(potential_new_connections[:5]):
+        node1, node2, travel_resistance = connection
         improved_g = transport_network.graph.copy()
-        improved_g.add_edge(node1, node2, travel_resistance=new_conn.travel_resistance)
+        improved_g.add_edge(node1, node2, travel_resistance=travel_resistance)
 
         weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.
