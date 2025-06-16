@@ -15,6 +15,7 @@ class Network:
         from rt_network.Node import Node
         import numpy as np
         from rt_network.Connection import Connection
+        from tqdm import tqdm
 
         if lines is None:
             lines = set()
@@ -62,24 +63,26 @@ class Network:
             self.nodes_by_type[mode] = mode_nodes
             self.nodes = self.nodes.union(mode_nodes)
 
+        #stitch together layers
         node_list = np.array(list(self.nodes))
         self.tree = STRtree([node.location for node in node_list])
         layer_conns = set()
-        for node1 in self.nodes_by_type['bus']:
-            dist_thresh = 0.01
-            neighborhood = node_list.take(self.tree.query_nearest(node1.location, max_distance=dist_thresh)).tolist()
-            neighborhood = [node for node in neighborhood if node.node_type != 'bus']
+        for node1 in tqdm(self.nodes_by_type['bus'], desc="Stitching together graph layers"):
+            dist_thresh = 0.0008
+            neighborhood = node_list.take(self.tree.query(node1.location, predicate='dwithin', distance=dist_thresh)).tolist()
+            neighborhood = [
+                node
+                for node in neighborhood
+                if node.node_type != 'bus'
+            ]
             new_conns = {
-                {
-                    Connection(
-                        node1,
-                        node2,
-                        conn_type='street'
-                    )
-                }
+                Connection(
+                    node1,
+                    node2,
+                    conn_type='street'
+                )
                 for node2 in neighborhood
             }
-
             layer_conns = layer_conns.union(new_conns)
         self.graph.add_edges_from([conn.get_connection_tuple() for conn in layer_conns])
 
