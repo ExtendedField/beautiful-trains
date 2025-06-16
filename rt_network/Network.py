@@ -67,13 +67,13 @@ class Network:
         node_list = np.array(list(self.nodes))
         self.tree = STRtree([node.location for node in node_list])
         layer_conns = set()
-        for node1 in tqdm(self.nodes_by_type['bus'], desc="Stitching together graph layers"):
+        for node1 in tqdm(self.nodes_by_type['street'], desc="Stitching together graph layers"):
             dist_thresh = 0.0008
             neighborhood = node_list.take(self.tree.query(node1.location, predicate='dwithin', distance=dist_thresh)).tolist()
             neighborhood = [
                 node
                 for node in neighborhood
-                if node.node_type != 'bus'
+                if node.node_type != 'street'
             ]
             new_conns = {
                 Connection(
