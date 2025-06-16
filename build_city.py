@@ -93,8 +93,7 @@ bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bu
 routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
 #removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
-print("Detecting bus routes...")
-for route in tqdm(valid_routes):
+for route in tqdm(valid_routes, desc = "Detecting bus routes"):
     # this logic should be abstracted and used for rail lines as well.
     curr_route = bus_route_shapes[bus_route_shapes.route == route]
     mask = [route in row for row in bus_stops.available_routes]

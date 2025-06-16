@@ -1,10 +1,4 @@
 class Connection:
-    station1 = None
-    station2 = None
-    conn_type = "street" # "street" , "bus" , "rail"
-    travel_resistance = 1 # heuristic for travel time. Usually wil be proportional to distance for now.
-    max_speed = None  # TODO: add max_speeed to all connections based on speed zones
-
     def __init__(self, station1=None, station2=None, conn_type="street"):
         self.station1 = station1
         self.station2 = station2
@@ -31,6 +25,15 @@ class Connection:
 
     def get_connection_tuple(self, weighted=False):
         if weighted:
-            return self.station1, self.station2, {"travel_resistance": self.travel_resistance}
+            return (
+                self.station1,
+                self.station2,
+                {
+                    "travel_resistance": self.travel_resistance,
+                    "connection_type": self.conn_type,
+                    "lines": set(self.station1.lines + self.station2.lines),
+                    "colors": set(self.station1.colors + self.station2.colors)
+                }
+            )
         else:
             return self.station1, self.station2

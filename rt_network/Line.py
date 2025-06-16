@@ -1,12 +1,4 @@
 class Line:
-
-    name = ""  # usually a color or letter. "green line" or "M line" for example
-    color = ""
-    stations = set()
-    connections = set()
-    line_graph = None
-    line_type = ""
-
     def __init__(
             self,
             stations=None,

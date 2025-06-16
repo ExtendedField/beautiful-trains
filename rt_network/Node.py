@@ -1,14 +1,5 @@
 class Node:
     """A data structure for station information within the urban rapid transit network"""
-    name = None  # string name of station
-    colors = None  # colors of lines at station
-    network_id = None
-    node_type = "street" # "street" , "bus" , "rail"
-    location = (
-        None  # lat and long coordinates save in standard (x,y) format for plotting
-    )
-    lines = None  # list of strings corresponding to line names present at station
-
     def __init__(self, net_id=None, name="", location=(0, 0), lines=None, colors=None, node_type="street"):
         from shapely import Point
 
@@ -19,7 +10,10 @@ class Node:
         if colors is None:
             self.colors = list()
         else:
-            self.colors = list(colors)
+            if type(colors) is str:
+                self.colors = [colors]
+            else:
+                self.colors = list(colors)
 
         self.network_id = net_id
         self.name = str(name)
