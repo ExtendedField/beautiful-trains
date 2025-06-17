@@ -17,6 +17,7 @@ from tqdm import tqdm
 from shapely import(
     MultiLineString,
     Point,
+    STRtree
 )
 
 # pass in city
@@ -93,6 +94,48 @@ bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bu
 routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
 #removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
+
+# subline connection func
+def connect_closest(eps):
+    print(eps)
+    if len(eps) == 1:
+        return
+    elif len(eps) == 2:
+        # if both are rings, connect them, else, do not
+        is_part_of_loop = [feat["loop"] for feat in eps.values()]
+        nodes = list(eps.keys())
+        if is_part_of_loop[0] and is_part_of_loop[1]:
+            route_connections.add(Connection(nodes[0], nodes[1], conn_type='bus'))
+            return
+        else:
+            return
+    else:
+        ep_list = list(eps.keys())
+        ep_tree = STRtree([ep.location for ep in ep_list])
+        nearest_points = [
+            (ep, ep_list[ep_tree.query_nearest(ep.location, exclusive=True, all_matches=False)[0]])
+            for ep in ep_list
+            if eps[ep]["id"] != eps[ep_list[ep_tree.query_nearest(ep.location, exclusive=True, all_matches=False)[0]]]["id"]
+        ]
+        if len(nearest_points) == 0: # if the closest points are on the same line segment
+            ids = {node["id"] for node in eps.values()}
+            dists = dict()
+            for identifier in ids:
+                curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
+                other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
+                for curr_ep in curr_seg:
+                    for other_ep in other_segs:
+                        dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
+            closest = tuple(dists[min(dists.keys())])
+        else:
+            dists = [p.location.distance(q.location) for p, q in nearest_points]
+            closest = nearest_points[np.argmin(dists)]
+        route_connections.add(Connection(*closest, conn_type='bus'))
+        for p in closest:
+            eps.pop(p, None)
+        connect_closest(eps)
+
+# detects bus routes
 for route in tqdm(valid_routes, desc = "Detecting bus routes"):
     # this logic should be abstracted and used for rail lines as well.
     curr_route = bus_route_shapes[bus_route_shapes.route == route]
@@ -113,8 +156,11 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
 
     route_connections = set()
     route_stops = set()
-    end_points = set()
+    end_points = dict()
+    subline_id = 0
+    num_loops = 0
     for line in sublines.keys():
+        num_loops = 0
         order = sorted(
             [
                 (  # order is important because sorted by default uses the first tuple value
@@ -133,7 +179,17 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
             key=lambda node: node[0]
         )
         if len(order) > 0:
-            end_points = end_points.union({order[0][1], order[-1][1]})
+            first = order[0][1]
+            last = order[-1][1]
+            end_points[first] = {
+                "id": subline_id,
+                "loop": first == last
+            }
+            end_points[last] = {
+                "id": subline_id,
+                "loop": first == last
+            }
+            subline_id += 1
             route_stops = route_stops.union(set(order))
             for i, item in enumerate(order[:-1]):
                 route_connections.add(
@@ -143,28 +199,7 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
                         conn_type="bus"
                     )
                 )
-
-    ep_distances = pd.DataFrame()
-    remaining_ep = end_points.copy()
-    for ep1 in end_points:
-        for ep2 in remaining_ep:
-            ep_distances.loc[ep1, ep2] = ep1.location.distance(ep2.location)
-        remaining_ep = remaining_ep.difference({ep1})
-
-    nonzero_dists = ep_distances[ep_distances != 0].dropna(axis = 1, how='all')
-    interconnections = pd.concat(
-        [
-            nonzero_dists.idxmin(skipna=True),
-            nonzero_dists.min()
-        ],
-        axis=1
-    # removing the last two elements here strikes me as not the best approach. There could be a different number of
-    # hanging ends than two, which this would leave unconnected or over connect. I think a distance outlier based
-    # approach may be better.
-    ).sort_values(1, ascending=True).dropna()[:-2].iloc[:, 0]
-    for i, row in interconnections.reset_index().iterrows():
-        route_connections.add(Connection(row.values[0], row.values[1], conn_type='bus'))
-
+    connect_closest(end_points)
     line_objects.add(
         Line(
             stations=route_stops,
@@ -174,7 +209,6 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
             weighted=True
         )
     )
-
 
 # build rail lines
 # create list of connections for each line

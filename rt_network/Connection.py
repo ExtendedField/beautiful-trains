@@ -1,5 +1,5 @@
 class Connection:
-    def __init__(self, station1=None, station2=None, conn_type="street"):
+    def __init__(self, station1, station2, conn_type="street"):
         self.station1 = station1
         self.station2 = station2
         from numpy import sqrt, cos
