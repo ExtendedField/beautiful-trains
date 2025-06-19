@@ -20,9 +20,9 @@ rt_network.plot_map(
     asc=True,
     conn_number=10,
     style="light",
-    streets=True,
+    streets=False,
     bus=True,
-    rail=True,
+    rail=False,
     #new_conn=True,
     graph_view=True
 )

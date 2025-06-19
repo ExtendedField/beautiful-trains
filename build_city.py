@@ -17,7 +17,6 @@ from tqdm import tqdm
 from shapely import(
     MultiLineString,
     Point,
-    STRtree
 )
 
 # pass in city
@@ -97,42 +96,25 @@ valid_routes = set(bus_route_shapes.route).intersection(routes)
 
 # subline connection func
 def connect_closest(eps):
-    print(eps)
-    if len(eps) == 1:
+    if len({val["id"] for val in eps.values()})<2:
         return
-    elif len(eps) == 2:
-        # if both are rings, connect them, else, do not
-        is_part_of_loop = [feat["loop"] for feat in eps.values()]
-        nodes = list(eps.keys())
-        if is_part_of_loop[0] and is_part_of_loop[1]:
-            route_connections.add(Connection(nodes[0], nodes[1], conn_type='bus'))
-            return
-        else:
-            return
     else:
         ep_list = list(eps.keys())
-        ep_tree = STRtree([ep.location for ep in ep_list])
-        nearest_points = [
-            (ep, ep_list[ep_tree.query_nearest(ep.location, exclusive=True, all_matches=False)[0]])
-            for ep in ep_list
-            if eps[ep]["id"] != eps[ep_list[ep_tree.query_nearest(ep.location, exclusive=True, all_matches=False)[0]]]["id"]
-        ]
-        if len(nearest_points) == 0: # if the closest points are on the same line segment
-            ids = {node["id"] for node in eps.values()}
-            dists = dict()
-            for identifier in ids:
-                curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
-                other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
-                for curr_ep in curr_seg:
-                    for other_ep in other_segs:
-                        dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
-            closest = tuple(dists[min(dists.keys())])
-        else:
-            dists = [p.location.distance(q.location) for p, q in nearest_points]
-            closest = nearest_points[np.argmin(dists)]
+        ids = {node["id"] for node in eps.values()}
+        dists = dict()
+        for identifier in ids:
+            curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
+            other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
+            for curr_ep in curr_seg:
+                for other_ep in other_segs:
+                    dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
+        closest = tuple(dists[min(dists.keys())])
         route_connections.add(Connection(*closest, conn_type='bus'))
-        for p in closest:
-            eps.pop(p, None)
+        # give new id to endpoints of newly created line segment
+        invalid_ids = {eps[node]["id"] for node in closest}
+        for node in eps.keys():
+            if eps[node]["id"] in invalid_ids:
+                eps[node]["id"] = max(ids) + 1
         connect_closest(eps)
 
 # detects bus routes
@@ -160,10 +142,9 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
     subline_id = 0
     num_loops = 0
     for line in sublines.keys():
-        num_loops = 0
         order = sorted(
             [
-                (  # order is important because sorted by default uses the first tuple value
+                (  # tuple order is important because sorted by default uses the first tuple value
                     line.project(Point(stop.geometry["coordinates"])),
                     Node(
                         net_id=stop.system_stop,
@@ -181,13 +162,16 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
         if len(order) > 0:
             first = order[0][1]
             last = order[-1][1]
+            is_loop = (first == last) and (len(order) > 1)
+            if is_loop:
+                print(order)
             end_points[first] = {
                 "id": subline_id,
-                "loop": first == last
+                "loop": is_loop
             }
             end_points[last] = {
                 "id": subline_id,
-                "loop": first == last
+                "loop": is_loop
             }
             subline_id += 1
             route_stops = route_stops.union(set(order))
