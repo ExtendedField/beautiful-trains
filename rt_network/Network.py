@@ -84,12 +84,41 @@ class Network:
                 for node2 in neighborhood
             }
             layer_conns = layer_conns.union(new_conns)
-        self.graph.add_edges_from([conn.get_connection_tuple() for conn in layer_conns])
+        self.graph.add_edges_from([conn.get_connection_tuple(weighted=True) for conn in layer_conns])
+
+        # connect any still disconnected portions
+        main_g = max(nx.connected_components(self.graph), key=len)
+        discon_subgs = [
+            self.graph.subgraph(c)
+            for c in nx.connected_components(self.graph)
+            if len(c) < len(main_g)
+        ]
+        for g in discon_subgs:
+            # Note: This may need to be adjusted depending on the city. taking a random point in the subgraph
+            # may not give the expected results in cases where the size of the extraneous subgraph is close to the
+            # size of the main graph.
+            invalid_nodes = list(g.nodes())
+            starting = invalid_nodes[0]
+            dist = 0.05
+            increment = 0.05
+            valid_targs = []
+            while len(valid_targs) < 1:
+                valid_targs += [
+                    n
+                    for n in node_list[self.tree.query(starting.location, predicate='dwithin', distance=dist)]
+                    if n not in invalid_nodes
+                ]
+                dist += increment
+            ending = valid_targs[0]
+            new_edge = Connection(starting, ending, conn_type='street')
+            self.graph.add_edges_from([new_edge.get_connection_tuple(weighted=True)])
+
+
 
     def __str__(self):
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"
 
-    # TODO: implement a voronoi cell plotting function once all nodes are added rather than just rail
+    # TODO: implement a voronoi cell plotting function once all nodes are added
     def plot_map(
         self,
         new_conn=False,
@@ -111,8 +140,9 @@ class Network:
         from sqlalchemy import create_engine, select
         import pickle
         import pandas as pd
-        from utils import gen_trace
-        from shapely import MultiLineString, LineString
+        from utils import gen_trace, gen_graph_geoms
+        from shapely import MultiLineString
+        from networkx import barycenter, subgraph
 
         passwd = "conductor"  # encrypt somewhere buddy...
         engine = create_engine(
@@ -127,24 +157,11 @@ class Network:
         node_traces = []
         line_traces = []
 
-        def gen_graph_geoms(layer, color=None):
-            if color:
-                condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
-            else:
-                condition = lambda u, v: layer in {u.node_type, v.node_type}
-            return MultiLineString(
-                [
-                    LineString((u.location, v.location))
-                    for u, v in self.graph.edges()
-                    if condition(u, v)
-                ]
-            )
-
         with engine.connect() as conn:
             if streets:
                 streets_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
                 if graph_view:
-                    street_geoms = gen_graph_geoms('street')
+                    street_geoms = gen_graph_geoms(self.graph, 'street')
                 else:
                     street_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in streets_data.geometry])
                 line_traces.append(gen_trace("lines",0.5, "grey", street_geoms))
@@ -153,7 +170,7 @@ class Network:
             if bus:
                 bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
                 if graph_view:
-                    bus_geoms = gen_graph_geoms('bus')
+                    bus_geoms = gen_graph_geoms(self.graph, 'bus')
                 else:
                     bus_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in bus_route_shapes.geometry])
                 line_traces.append(gen_trace("lines", 1, "black", bus_geoms))
@@ -168,7 +185,7 @@ class Network:
                         line_name = line.lower().split(" ")[0]
                         line_color = [line for line in self.lines if line_name in line.name][0].color
                     if graph_view:
-                        rail_geoms = gen_graph_geoms('rail', line_color)
+                        rail_geoms = gen_graph_geoms(self.graph,'rail', line_color)
                     else:
                         rail_geoms = MultiLineString(
                             [
@@ -210,12 +227,11 @@ class Network:
                                  for i, row in best_conns[["node1", "node2"]].iterrows()]
                 line_traces.append(gen_trace("lines",2, "lawngreen", new_conn_geom))
 
-        ### TODO: BELOW NEEDS TO FULLY CONNECT GRAPH TO RESOLVE
-        # center location
-        #longitude, latitude = nx.barycenter(self.graph)[0].location # if multiple, take average of lat and lon
-        longitude, latitude = (-87.63111, 41.88179)
+        centering_layer = min(self.nodes_by_type.values(), key=len)
+        center_coords = barycenter(subgraph(self.graph, centering_layer))[0].location
+        longitude = center_coords.x
+        latitude = center_coords.y
         center = dict(lat=latitude, lon=longitude)
-        ###
 
         fig = go.Figure(
             layout=go.Layout(
@@ -238,5 +254,57 @@ class Network:
         )
 
         for trace in line_traces+node_traces:
+            fig.add_trace(trace)
+        fig.show()
+
+    def plot_subgraphs(self, center=(0,0)):
+        from networkx import connected_components
+        from plotly import graph_objects as go
+        from shapely import MultiLineString
+        from utils import gen_trace
+
+        main_g = max(connected_components(self.graph), key=len)
+        print(f"subgraph sizes: {[len(c) for c in connected_components(self.graph)]}")
+        subgraphs = [
+            self.graph.subgraph(c)
+            for c in connected_components(self.graph)
+            if len(c) < len(main_g)
+        ]
+        center = dict(lat=center[1], lon=center[0])
+        fig = go.Figure(
+            layout=go.Layout(
+                title=dict(text=f"<br>Chicago", font=dict(size=16)),
+                showlegend=False,
+                hovermode="closest",
+                margin=dict(b=20, l=5, r=5, t=40),
+                annotations=[
+                    dict(
+                        text=f"Map of Chicago's rapid transit network",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.005,
+                        y=-0.002,
+                    )
+                ],
+                map=dict(center=center, zoom=10, bearing=0, pitch=0, style='light'),
+            ),
+        )
+
+        line_traces = []
+        node_traces = []
+        for g in subgraphs:
+            nodes = g.nodes()
+            edges = g.edges()
+            line_geoms = MultiLineString(
+                [
+                    [(edge[0].location.x, edge[0].location.y), (edge[1].location.x, edge[1].location.y)]
+                    for edge in edges]
+            )
+            node_geoms = [node.location for node in nodes]
+            line_traces.append(gen_trace("lines", 1, "black", line_geoms))
+            node_traces.append(gen_trace("markers", 1, "black", node_geoms))
+
+        for trace in line_traces + node_traces:
             fig.add_trace(trace)
         fig.show()

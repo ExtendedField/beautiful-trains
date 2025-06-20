@@ -4,6 +4,7 @@ from tqdm import tqdm
 from time import sleep
 import numpy as np
 import networkx as nx
+from shapely import LineString, MultiLineString
 
 
 def build_table(metadata, table_name, schema):
@@ -191,3 +192,17 @@ def project(lam, phi, proj="mercator", deg=True):
         raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
 
     return x, y
+
+
+def gen_graph_geoms(g, layer, color=None):
+    if color:
+        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
+    else:
+        condition = lambda u, v: layer in {u.node_type, v.node_type}
+    return MultiLineString(
+        [
+            LineString((u.location, v.location))
+            for u, v in g.edges()
+            if condition(u, v)
+        ]
+    )
