@@ -93,14 +93,15 @@ class Network:
             for c in nx.connected_components(self.graph)
             if len(c) < len(main_g)
         ]
+        new_edges = []
         for g in discon_subgs:
             # Note: This may need to be adjusted depending on the city. taking a random point in the subgraph
             # may not give the expected results in cases where the size of the extraneous subgraph is close to the
             # size of the main graph.
             invalid_nodes = list(g.nodes())
             starting = invalid_nodes[0]
-            dist = 0.05
-            increment = 0.05
+            dist = 0.005
+            increment = 0.005
             valid_targs = []
             while len(valid_targs) < 1:
                 valid_targs += [
@@ -110,8 +111,8 @@ class Network:
                 ]
                 dist += increment
             ending = valid_targs[0]
-            new_edge = Connection(starting, ending, conn_type='street')
-            self.graph.add_edges_from([new_edge.get_connection_tuple(weighted=True)])
+            new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
+        self.graph.add_edges_from(new_edges)
 
 
 
