@@ -5,7 +5,7 @@ from time import sleep
 import numpy as np
 import networkx as nx
 from shapely import LineString, MultiLineString
-
+from rt_network.Connection import Connection
 
 def build_table(metadata, table_name, schema):
     from sqlalchemy import (
@@ -113,6 +113,7 @@ def read_city_json(city, json_dir):
         return json.load(city_info_json)[city]
 
 def weighted_shortest_path(g, boardings, weight="travel_resistance"):
+    # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
     nodes = list(g)
     index = sorted([node.network_id for node in nodes])
     boardings = boardings[boardings.index.isin(index)]
@@ -206,3 +207,34 @@ def gen_graph_geoms(g, layer, color=None):
             if condition(u, v)
         ]
     )
+
+def connect_graph(g, tree):
+    if nx.is_connected(g):
+        return
+    else:
+        # connect any still disconnected portions
+        node_list = np.array(list(g.nodes()))
+        main_g = max(nx.connected_components(g), key=len)
+        discon_subgs = [
+            g.subgraph(c)
+            for c in nx.connected_components(g)
+            if len(c) < len(main_g)
+        ]
+        target = discon_subgs[0]
+        new_edges = []
+        invalid_nodes = list(target.nodes())
+        starting = invalid_nodes[0]
+        dist = 0.005
+        increment = 0.005
+        valid_targs = []
+        while len(valid_targs) < 1:
+            valid_targs += [
+                n
+                for n in node_list[tree.query(starting.location, predicate='dwithin', distance=dist)]
+                if n not in invalid_nodes
+            ]
+            dist += increment
+        ending = valid_targs[0]
+        new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
+    g.add_edges_from(new_edges)
+    connect_graph(g, tree)

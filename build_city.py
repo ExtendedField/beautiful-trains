@@ -235,10 +235,8 @@ transport_network = Network(city,
 print("Network created.")
 
 if include_data:
-    # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
     from utils import weighted_shortest_path
     from itertools import product
-
 
     # create a list of all connections that do not exist in graph (between lines only)
     print("Fetching summary stats for all possible new connections...")
@@ -246,19 +244,17 @@ if include_data:
     for node_type in transport_network.available_modes:
         conn_lists[node_type] = [node for node in transport_network.nodes if node.node_type == node_type]
     # streets direct to rail connections, rail to rail might be exhaustive for this approach.
-    print("Generating new potential connections from street to rail...")
     street_to_rail = [
-        Connection(st1,st2,conn_type='rail')
-        for st1, st2 in tqdm(product(conn_lists['street'], conn_lists['rail']))
+        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(product(conn_lists['street'], conn_lists['rail']), desc="Generating new potential connections from street to rail")
     ]
-    print("Generating new potential connections from rail to rail...")
     rail_to_rail = [
-        Connection(st1,st2,conn_type='rail')
-        for st1, st2 in tqdm(product(conn_lists['rail'], conn_lists['rail']))
+        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(product(conn_lists['rail'], conn_lists['rail']), desc="Generating new potential connections from rail to rail")
         if len(set(st1.lines).intersection(set(st2.lines))) == 0
     ]
 
-    potential_new_connections = [conn.get_connection_tuple(weighted=True) for conn in rail_to_rail+street_to_rail]
+    potential_new_connections = rail_to_rail + street_to_rail
     # calculate statistics characterizing the network
     efficiency_stats = pd.DataFrame(
         index=pd.MultiIndex.from_tuples([(conn[0],conn[1]) for conn in potential_new_connections]),
@@ -301,10 +297,6 @@ if include_data:
             dict(zip([str(key) for key in page_dict.keys()], page_dict.values()))
         )
 
-        # efficiency_stats.loc[connection, "smallworld_sigma"] = nx.sigma(improved_g) # these numbers seem off, and it is very slow
-        # efficiency_stats.loc[connection, "smallworld_omega"] = nx.omega(improved_g) # I dont think this is a particularly good measure of a transit network
-        # efficiency_stats.loc[connection, "communicability"] = nx.communicability(improved_g) # This strikes me as detecting redundancy more than anything else
-
     print("Adding network stats to DB...")
     efficiency_stats = efficiency_stats.reset_index().rename(
         columns={"level_0": "node1", "level_1": "node2"}
@@ -321,7 +313,6 @@ if include_data:
     print("Network stats added.")
 
 print("Pickling Network...")
-# pickle network object...
 directory = f"data/rt_networks/{city}_network.pkl"
 output = open(directory, "wb+")
 pickle.dump(transport_network, output)

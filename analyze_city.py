@@ -1,6 +1,8 @@
 import pickle
 import argparse
 
+import networkx as nx
+
 # pass in city
 parser = argparse.ArgumentParser(
     prog="RT Network Analyzer", description="Analyzes a city's rapid transit network"
@@ -15,14 +17,16 @@ with open(filedir, "rb") as f:
     rt_network = pickle.load(f)
 
 #analysis and behavior can be done here
-rt_network.plot_map(
-    optimization_stat="mean_shortest_path_length",
-    asc=True,
-    conn_number=10,
-    style="light",
-    streets=True,
-    bus=True,
-    rail=True,
-    #new_conn=True,
-    graph_view=True
-)
+# rt_network.plot_map(
+#     optimization_stat="mean_shortest_path_length",
+#     asc=True,
+#     conn_number=10,
+#     style="light",
+#     streets=True,
+#     bus=True,
+#     rail=True,
+#     #new_conn=True,
+#     graph_view=True
+# )
+
+print([len(c) for c in nx.connected_components(rt_network.graph)])

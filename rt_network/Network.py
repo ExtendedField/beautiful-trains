@@ -16,6 +16,7 @@ class Network:
         import numpy as np
         from rt_network.Connection import Connection
         from tqdm import tqdm
+        from utils import connect_graph
 
         if lines is None:
             lines = set()
@@ -85,36 +86,7 @@ class Network:
             }
             layer_conns = layer_conns.union(new_conns)
         self.graph.add_edges_from([conn.get_connection_tuple(weighted=True) for conn in layer_conns])
-
-        # connect any still disconnected portions
-        main_g = max(nx.connected_components(self.graph), key=len)
-        discon_subgs = [
-            self.graph.subgraph(c)
-            for c in nx.connected_components(self.graph)
-            if len(c) < len(main_g)
-        ]
-        new_edges = []
-        for g in discon_subgs:
-            # Note: This may need to be adjusted depending on the city. taking a random point in the subgraph
-            # may not give the expected results in cases where the size of the extraneous subgraph is close to the
-            # size of the main graph.
-            invalid_nodes = list(g.nodes())
-            starting = invalid_nodes[0]
-            dist = 0.005
-            increment = 0.005
-            valid_targs = []
-            while len(valid_targs) < 1:
-                valid_targs += [
-                    n
-                    for n in node_list[self.tree.query(starting.location, predicate='dwithin', distance=dist)]
-                    if n not in invalid_nodes
-                ]
-                dist += increment
-            ending = valid_targs[0]
-            new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
-        self.graph.add_edges_from(new_edges)
-
-
+        connect_graph(self.graph, self.tree)
 
     def __str__(self):
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"
