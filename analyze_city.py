@@ -28,5 +28,5 @@ with open(filedir, "rb") as f:
 #     #new_conn=True,
 #     graph_view=True
 # )
-
+print([c.travel_resistance for c  in rt_network.connections][0])
 print([len(c) for c in nx.connected_components(rt_network.graph)])

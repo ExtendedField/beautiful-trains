@@ -264,10 +264,14 @@ if include_data:
             if "node" not in col
         ],  # removing index nodes for later
     )
-    for connection in tqdm(potential_new_connections[:5]):
-        node1, node2, travel_resistance = connection
+    # research kubernetes and think about how to smartly pair down the sample size.
+    for connection in tqdm(
+            potential_new_connections[:5],
+            desc="Generating efficiency stats for all potential new connections"
+    ):
+        node1, node2, meta_data = connection
         improved_g = transport_network.graph.copy()
-        improved_g.add_edge(node1, node2, travel_resistance=travel_resistance)
+        improved_g.add_edge(node1, node2, travel_resistance=meta_data["travel_resistance"])
 
         weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.
