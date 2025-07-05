@@ -13,10 +13,12 @@ parser = argparse.ArgumentParser(
     description="Generates network structure for a city's rapid transit network",
 )
 parser.add_argument("city_name")
-parser.add_argument("-r", "--refresh", type=bool)
+parser.add_argument("-r", "--refresh", action="store_true")
+parser.add_argument("--table")
 args = parser.parse_args()
 city = args.city_name
 refresh = args.refresh
+target_table = args.table
 
 city_info = read_city_json(city, "./data/city_info.json")
 table_info = city_info["tables"]
@@ -46,16 +48,29 @@ tables = [
     build_table(transit_metadata, table_name, schema)
     for table_name, schema in schemas.items()
 ]
+if target_table:
+    tables = [table for table in tables if table.name == target_table]
+if refresh:
+    for table in tables:
+        table.drop(engine)
 transit_metadata.create_all(engine)
+empty_tables = ["efficiency_stats"] # list of tables to be filled later
 for table in tables:
-    if (
-        table.name == "efficiency_stats"
-    ):  # one day flag this as creating an empty table rather than hardcoding
+    if table.name in empty_tables:
         add_to_db(city, table, engine, client)
     else:
-        table_id = city_info["tables"][table.name]["remote_table_id"]
-        local_dir = city_info["tables"][table.name]["local_dir"]
-        add_to_db(city, table, engine, client, table_id=table_id, source_csv=local_dir)
+        table_name = city_info["tables"][table.name]
+        table_id = table_name["remote_table_id"]
+        local_dir = table_name["local_dir"]
+        add_to_db(
+            city,
+            table,
+            engine,
+            client,
+            table_id=table_id,
+            source_csv=local_dir,
+            query_params=table_name["query_params"]
+        )
 
 print("Pickling DB Metadata...")
 directory = f"data/dbmetadata/{city}db_metadata.pkl"

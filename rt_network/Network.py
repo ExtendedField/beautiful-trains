@@ -1,24 +1,34 @@
 class Network:
-    city = ""
-    lines = set()
-    connections = set()
-    stations = set()
-    graph = None
-
-    def __init__(self, city=None, lines=None):
+    def __init__(
+            self,
+            city=None,
+            lines=None,
+            rail_shapes=None,
+            bus_route_shapes=None,
+            street_shapes=None
+    ):
         import networkx as nx
+        import geopandas as gpd
+        from shapely import MultiLineString, STRtree
+        import momepy as mp
+        from data.resistances import resistances
+        from rt_network.Node import Node
+        import numpy as np
+        from rt_network.Connection import Connection
+        from tqdm import tqdm
+        from utils import connect_graph
 
         if lines is None:
             lines = set()
         if city is None:
             city = ""
 
+        self.rail_shapes = rail_shapes
+        self.bus_route_shapes = bus_route_shapes
+        self.street_shapes = street_shapes
         self.city = city
         self.lines = lines
-        unpacked_stations = [line.stations for line in lines]
-        self.stations = {
-            station for station_set in unpacked_stations for station in station_set
-        }
+        self.nodes_by_type = dict()
         unpacked_connections = [line.connections for line in lines]
         self.connections = {
             connections
@@ -26,17 +36,62 @@ class Network:
             for connections in connections_set
         }
 
+        # create intersection nodes and how they connect via streets
+        street_shapes.loc[:, "geometry"] = [MultiLineString(item["coordinates"]) for item in street_shapes.loc[:, "geometry"]]
+        streets = gpd.GeoDataFrame(street_shapes, geometry="geometry").explode()
+        street_g = mp.gdf_to_nx(streets)
+        mapping = dict()
+        for node in street_g:
+            mapping[node] = Node(colors="grey", location=node, node_type="street")
+        street_g = nx.relabel_nodes(street_g, mapping)
+        dists = nx.get_edge_attributes(street_g, name="mm_len")
+        for edge_key in dists.keys():
+            # mm -> km * resistance factor for walking
+            dists[edge_key] = float(dists[edge_key]) * 1000 * resistances["street"]
+        nx.set_edge_attributes(street_g, values=dists, name="travel_resistance")
+
         # create graph object
-        graph = nx.Graph()
+        graph = street_g
         line_graphs = {line.line_graph for line in lines}
         for lg in line_graphs:
-            graph = nx.compose(graph, lg)
+            graph.update(lg)
+
         self.graph = graph
+        self.available_modes = {node.node_type for node in graph.nodes}
+        self.nodes = set()
+        for mode in self.available_modes:
+            mode_nodes = {node for node in graph.nodes() if node.node_type == mode}
+            self.nodes_by_type[mode] = mode_nodes
+            self.nodes = self.nodes.union(mode_nodes)
+
+        #stitch together layers
+        node_list = np.array(list(self.nodes))
+        self.tree = STRtree([node.location for node in node_list])
+        layer_conns = set()
+        for node1 in tqdm(self.nodes_by_type['street'], desc="Stitching together graph layers"):
+            dist_thresh = 0.0008
+            neighborhood = node_list.take(self.tree.query(node1.location, predicate='dwithin', distance=dist_thresh)).tolist()
+            neighborhood = [
+                node
+                for node in neighborhood
+                if node.node_type != 'street'
+            ]
+            new_conns = {
+                Connection(
+                    node1,
+                    node2,
+                    conn_type='street'
+                )
+                for node2 in neighborhood
+            }
+            layer_conns = layer_conns.union(new_conns)
+        self.graph.add_edges_from([conn.get_connection_tuple(weighted=True) for conn in layer_conns])
+        connect_graph(self.graph, self.tree)
 
     def __str__(self):
-        return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal stations: {len(self.stations)}"
+        return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"
 
-    # implement a voronoi cell plotting function once all nodes are added rather than just rail
+    # TODO: implement a voronoi cell plotting function once all nodes are added
     def plot_map(
         self,
         new_conn=False,
@@ -44,63 +99,112 @@ class Network:
         asc=True,
         conn_number=10,
         style="light",
+        rail=True,
+        bus=True,
+        streets=True,
+        graph_view=False
     ) -> None:
-        """A Method to plot the RT network as a visio-spacial graph"""
+        """
+        A function to plot a cities rapid transit network as an image, optionally adding in recommended new
+        connections.
+        """
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
-        import networkx as nx
+        from sqlalchemy import create_engine, select
+        import pickle
+        import pandas as pd
+        from utils import gen_trace, gen_graph_geoms
+        from shapely import MultiLineString
+        from networkx import barycenter, subgraph
 
-        # {line_name: (node_trace_obj, edge_trace_obj)}
-        line_traces = dict()
-        for line in self.lines:
-            g = line.line_graph
-            edge_x = []
-            edge_y = []
-            for edge in g.edges():
-                lam0 = edge[0].long()
-                phi0 = edge[0].lat()
-                lam1 = edge[1].long()
-                phi1 = edge[1].lat()
-                edge_x.append(lam0)
-                edge_x.append(lam1)
-                edge_x.append(None)
-                edge_y.append(phi0)
-                edge_y.append(phi1)
-                edge_y.append(None)
+        passwd = "conductor"  # encrypt somewhere buddy...
+        engine = create_engine(
+            f"postgresql://transitdb_user:{passwd}@localhost/{self.city}_transitdb"
+        )
 
-            edge_trace = go.Scattermap(
-                lat=edge_y,
-                lon=edge_x,
-                line=dict(width=0.5, color=line.color),
-                hoverinfo="none",
-                mode="lines",
-            )
+        # unpickle metadata object...
+        filedir = f"data/dbmetadata/{self.city}db_metadata.pkl"
+        with open(filedir, "rb") as f:
+            transit_metadata = pickle.load(f)
 
-            node_x = []
-            node_y = []
-            node_text = []
-            for node in g.nodes():
-                lam = node.long()
-                phi = node.lat()
-                node_x.append(lam)
-                node_y.append(phi)
-                node_text.append(f"Name: {node.name}\nID: {node.network_id}")
+        node_traces = []
+        line_traces = []
 
-            node_trace = go.Scattermap(
-                lat=node_y,
-                lon=node_x,
-                mode="markers",
-                hoverinfo="text",
-                marker=dict(
-                    size=9,
-                    color=line.color,
-                ),
-            )
-            line_traces[line] = (edge_trace, node_trace)
+        with engine.connect() as conn:
+            if streets:
+                streets_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
+                if graph_view:
+                    street_geoms = gen_graph_geoms(self.graph, 'street')
+                else:
+                    street_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in streets_data.geometry])
+                line_traces.append(gen_trace("lines",0.5, "grey", street_geoms))
+                street_corners = [node.location for node in self.nodes_by_type['street']]
+                node_traces.append(gen_trace("markers", 0.5, "grey", street_corners))
+            if bus:
+                bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+                if graph_view:
+                    bus_geoms = gen_graph_geoms(self.graph, 'bus')
+                else:
+                    bus_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in bus_route_shapes.geometry])
+                line_traces.append(gen_trace("lines", 1, "black", bus_geoms))
+                bus_stops = [node.location for node in self.nodes_by_type['bus']]
+                node_traces.append(gen_trace("markers", 1, "black", bus_stops))
+            if rail:
+                rail_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
+                for line in rail_line_shapes.lines.unique():
+                    if len(line.split(",")) > 1:
+                        line_color = "darkkhaki"
+                    else:
+                        line_name = line.lower().split(" ")[0]
+                        line_color = [line for line in self.lines if line_name in line.name][0].color
+                    if graph_view:
+                        rail_geoms = gen_graph_geoms(self.graph,'rail', line_color)
+                    else:
+                        rail_geoms = MultiLineString(
+                            [
+                                MultiLineString(line["coordinates"])
+                                for line in rail_line_shapes[rail_line_shapes.lines == line].geometry
+                            ]
+                        )
+                    line_traces.append(gen_trace("lines", 2, line_color, rail_geoms))
+                    line_stations = [
+                        node.location
+                        for node in self.nodes_by_type['rail']
+                        if line_color in node.colors
+                    ]
+                    node_traces.append(gen_trace("markers", 2, line_color , line_stations))
+            if new_conn:
+                efficiency_stats = transit_metadata.tables["efficiency_stats"]
+                if asc:
+                    ordering = efficiency_stats.c[optimization_stat].asc()
+                else:
+                    ordering = efficiency_stats.c[optimization_stat].asc()
+                query = (
+                    select(
+                        efficiency_stats.c[
+                            "node1", "node2", optimization_stat
+                        ]
+                    )
+                    .order_by(ordering)
+                    .limit(conn_number)
+                )
+                best_conns = pd.DataFrame(conn.execute(query))
+                for col in ["node1", "node2"]:
+                    best_conns.loc[:, col] = [
+                        stop
+                        for stop in self.nodes
+                        for node in best_conns.loc[:, col]
+                        if str(stop) == node
+                    ]
+                new_conn_geom = [[[row.node1.long(), row.node1.lat()], [row.node2.long(), row.node2.lat()]]
+                                 for i, row in best_conns[["node1", "node2"]].iterrows()]
+                line_traces.append(gen_trace("lines",2, "lawngreen", new_conn_geom))
 
-        # center location
-        lon, lat = nx.barycenter(self.graph)[0].location
-        center = dict(lat=lat, lon=lon)
+        centering_layer = min(self.nodes_by_type.values(), key=len)
+        center_coords = barycenter(subgraph(self.graph, centering_layer))[0].location
+        longitude = center_coords.x
+        latitude = center_coords.y
+        center = dict(lat=latitude, lon=longitude)
 
         fig = go.Figure(
             layout=go.Layout(
@@ -121,80 +225,59 @@ class Network:
                 map=dict(center=center, zoom=10, bearing=0, pitch=0, style=style),
             ),
         )
-        if new_conn:
-            from sqlalchemy import create_engine, select
-            import pickle
-            import pandas as pd
 
-            passwd = "conductor"  # encrypt somewhere buddy...
-            engine = create_engine(
-                f"postgresql://transitdb_user:{passwd}@localhost/{self.city}_transitdb"
-            )
-
-            # unpickle metadata object...
-            filedir = f"data/dbmetadata/{self.city}db_metadata.pkl"
-            with open(filedir, "rb") as f:
-                transit_metadata = pickle.load(f)
-
-            with engine.connect() as conn:
-                efficiency_stats = transit_metadata.tables["efficiency_stats"]
-                if asc:
-                    query = (
-                        select(
-                            efficiency_stats.c[
-                                "station1", "station2", optimization_stat
-                            ]
-                        )
-                        .order_by(efficiency_stats.c[optimization_stat].asc())
-                        .limit(conn_number)
-                    )
-                else:
-                    query = (
-                        select(
-                            efficiency_stats.c[
-                                "station1", "station2", optimization_stat
-                            ]
-                        )
-                        .order_by(efficiency_stats.c[optimization_stat].desc())
-                        .limit(conn_number)
-                    )
-
-                best_conns = pd.DataFrame(conn.execute(query))
-                for col in ["station1", "station2"]:
-                    best_conns.loc[:, col] = [
-                        stop
-                        for stop in self.stations
-                        for station in best_conns.loc[:, col]
-                        if str(stop) == station
-                    ]
-
-            edge_x = []
-            edge_y = []
-
-            for i, row in best_conns.iterrows():
-                lam0 = row.station1.long()
-                phi0 = row.station1.lat()
-                lam1 = row.station2.long()
-                phi1 = row.station2.lat()
-                edge_x.append(lam0)
-                edge_x.append(lam1)
-                edge_x.append(None)
-                edge_y.append(phi0)
-                edge_y.append(phi1)
-                edge_y.append(None)
-
-            new_edge_trace = go.Scattermap(
-                lat=edge_y,
-                lon=edge_x,
-                line=dict(width=0.5, color="black"),
-                hoverinfo="none",
-                mode="lines",
-            )
-            fig.add_trace(new_edge_trace)
-
-        for trace in line_traces.values():
-            for tres in trace:
-                fig.add_trace(tres)
+        for trace in line_traces+node_traces:
+            fig.add_trace(trace)
         fig.show()
 
-    # create functions to return network stats that are of interest
+    def plot_subgraphs(self, center=(0,0)):
+        from networkx import connected_components
+        from plotly import graph_objects as go
+        from shapely import MultiLineString
+        from utils import gen_trace
+
+        main_g = max(connected_components(self.graph), key=len)
+        print(f"subgraph sizes: {[len(c) for c in connected_components(self.graph)]}")
+        subgraphs = [
+            self.graph.subgraph(c)
+            for c in connected_components(self.graph)
+            if len(c) < len(main_g)
+        ]
+        center = dict(lat=center[1], lon=center[0])
+        fig = go.Figure(
+            layout=go.Layout(
+                title=dict(text=f"<br>Chicago", font=dict(size=16)),
+                showlegend=False,
+                hovermode="closest",
+                margin=dict(b=20, l=5, r=5, t=40),
+                annotations=[
+                    dict(
+                        text=f"Map of Chicago's rapid transit network",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.005,
+                        y=-0.002,
+                    )
+                ],
+                map=dict(center=center, zoom=10, bearing=0, pitch=0, style='light'),
+            ),
+        )
+
+        line_traces = []
+        node_traces = []
+        for g in subgraphs:
+            nodes = g.nodes()
+            edges = g.edges()
+            line_geoms = MultiLineString(
+                [
+                    [(edge[0].location.x, edge[0].location.y), (edge[1].location.x, edge[1].location.y)]
+                    for edge in edges]
+            )
+            node_geoms = [node.location for node in nodes]
+            line_traces.append(gen_trace("lines", 1, "black", line_geoms))
+            node_traces.append(gen_trace("markers", 1, "black", node_geoms))
+
+        for trace in line_traces + node_traces:
+            fig.add_trace(trace)
+        fig.show()

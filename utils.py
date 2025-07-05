@@ -2,7 +2,10 @@ import pandas as pd
 import json
 from tqdm import tqdm
 from time import sleep
-
+import numpy as np
+import networkx as nx
+from shapely import LineString, MultiLineString
+from rt_network.Connection import Connection
 
 def build_table(metadata, table_name, schema):
     from sqlalchemy import (
@@ -37,14 +40,15 @@ def add_to_db(
     table_id=None,
     source_csv=None,
     source_df=None,
-    refresh=False,
-    **query_params,
+    query_params=None,
 ):
     """
     If requested data does not exist in the database, this downloads it and adds it to the db
     """
     from sqlalchemy.dialects.postgresql import insert
-    from sqlalchemy import delete
+
+    if query_params is None:
+        query_params = {}
 
     table_name = table.name
 
@@ -61,48 +65,42 @@ def add_to_db(
             chunk_size = 999  # socrata only allows 1k rows per request.
             num_chunks = round(num_rows / chunk_size) + 1
             offsets = [chunk_size * x for x in range(num_chunks)]
+            sleep(0.5) # trying to resolve timeout between large table fetches
             data = client.get(table_id, offset=offsets[0], **query_params)
             if len(offsets) > 1:
-                for offset in tqdm(offsets):  # add [-100:] to avoid throttling for now
+                for offset in tqdm(offsets):
                     data.extend(client.get(table_id, offset=offset, **query_params))
-                    sleep(
-                        0.01
-                    )  # if API calls are made too frequently, not all data will be fetched.
+                    # if API calls are made too frequently, not all data will be fetched.
+                    sleep(0.1)
             print("Data Downloaded.")
         except:
-            # maybe make this more informative
             raise Exception("Unable to fetch data. Check table key in city_info.json")
+        # Sodapy appears to skip null values when pulling from table.
+        # converting to a DF as an intermediate resolves the issue.
+        data = pd.DataFrame(data)
     elif source_csv:
         path = f"data/{source_csv}"
         data = pd.read_csv(path)
-        if table.name == "station_order":
+        if table.name == "train_station_order":
             data["order"] = data["order"].str.split(",")
-        data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
     elif source_df is not None:
-        data = [
-            row.to_dict() for i, row in source_df.iterrows()
-        ]  # convert to list of dicts
+        data = source_df
     else:
         print(
             f"No table_id, source_csv, or source_df given. Table: {table_name} will be left empty."
         )
         return
     print(f"Writing to table: {city}_transitdb.{table_name}")
-    import numpy as np
 
-    data = np.array(data)
-
+    data = [row.to_dict() for i, row in data.iterrows()]  # convert to list of dicts
     print(f"Saving data to table: {table_name}")
     with engine.connect() as conn:
-        if refresh:
-            query = delete(table)
-            conn.execute(query)
-        for row in data:
+        for row in tqdm(data):
             # repackages data with specified schema names instead of schema defined by the transit org
             renamed_row = dict(zip(table.c.keys(), row.values()))
             query = (
                 insert(table)
-                .values(tuple(row.values()))
+                .values(renamed_row)
                 .on_conflict_do_update(
                     index_elements=table.primary_key, set_=renamed_row
                 )
@@ -110,11 +108,65 @@ def add_to_db(
             conn.execute(query)
         conn.commit()
 
-
 def read_city_json(city, json_dir):
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
 
+def weighted_shortest_path(g, boardings, weight="travel_resistance"):
+    # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
+    nodes = list(g)
+    index = sorted([node.network_id for node in nodes])
+    boardings = boardings[boardings.index.isin(index)]
+    total_boardings = float(boardings.avg_rides.sum())
+
+    path_lengths = pd.DataFrame(dict(nx.shortest_path_length(g, weight=weight)))
+    path_lengths.index = [i.network_id for i in path_lengths.index]
+    path_lengths.columns = [i.network_id for i in path_lengths.columns]
+    path_lengths = path_lengths.sort_index().sort_index(axis=1)
+    return (
+        np.matmul(
+            np.diag(boardings.to_numpy().flatten()).astype("float"),
+            path_lengths,
+        ).sum()
+        / total_boardings
+    ).mean()
+
+
+def gen_trace(trace_type, line_width, color, geom_data):
+    """
+    trace_type: 'line' or 'marker'
+    line_width: float value of the desired line width
+    color: line color
+    geom_data: list[MultiLineString] list of shapely MultiLineString objects
+               or list[Point] shapely Point objects.
+    """
+    from plotly import graph_objects as go
+    edge_x = []
+    edge_y = []
+    if trace_type =='lines':
+        for segment in geom_data.geoms:
+            if ~segment.is_empty:
+                for coord in segment.coords:
+                    lon = coord[0]
+                    lat = coord[1]
+                    edge_x.append(lon)
+                    edge_y.append(lat)
+                edge_x.append(None)
+                edge_y.append(None)
+    else:
+        for coord in geom_data:
+            lon = coord.x
+            lat = coord.y
+            edge_x.append(lon)
+            edge_y.append(lat)
+
+    return go.Scattermap(
+        lat=edge_y,
+        lon=edge_x,
+        line=dict(width=line_width, color=color),
+        hoverinfo="none",
+        mode=trace_type,
+    )
 
 def project(lam, phi, proj="mercator", deg=True):
     """
@@ -141,3 +193,48 @@ def project(lam, phi, proj="mercator", deg=True):
         raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
 
     return x, y
+
+
+def gen_graph_geoms(g, layer, color=None):
+    if color:
+        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
+    else:
+        condition = lambda u, v: layer in {u.node_type, v.node_type}
+    return MultiLineString(
+        [
+            LineString((u.location, v.location))
+            for u, v in g.edges()
+            if condition(u, v)
+        ]
+    )
+
+def connect_graph(g, tree):
+    if nx.is_connected(g):
+        return
+    else:
+        # connect any still disconnected portions
+        node_list = np.array(list(g.nodes()))
+        main_g = max(nx.connected_components(g), key=len)
+        discon_subgs = [
+            g.subgraph(c)
+            for c in nx.connected_components(g)
+            if len(c) < len(main_g)
+        ]
+        target = discon_subgs[0]
+        new_edges = []
+        invalid_nodes = list(target.nodes())
+        starting = invalid_nodes[0]
+        dist = 0.005
+        increment = 0.005
+        valid_targs = []
+        while len(valid_targs) < 1:
+            valid_targs += [
+                n
+                for n in node_list[tree.query(starting.location, predicate='dwithin', distance=dist)]
+                if n not in invalid_nodes
+            ]
+            dist += increment
+        ending = valid_targs[0]
+        new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
+    g.add_edges_from(new_edges)
+    connect_graph(g, tree)

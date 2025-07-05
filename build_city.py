@@ -1,7 +1,7 @@
 import pandas as pd
 
 # consider storing all these classes in on file since they are rather compact presently
-from rt_network.Station import Station
+from rt_network.Node import Node
 from rt_network.Connection import Connection
 from rt_network.Line import Line
 from rt_network.Network import Network
@@ -10,11 +10,14 @@ from utils import add_to_db
 import pickle
 import argparse
 from utils import read_city_json
-from ast import literal_eval
 import numpy as np
 from sqlalchemy import create_engine, select, func
 import networkx as nx
 from tqdm import tqdm
+from shapely import(
+    MultiLineString,
+    Point,
+)
 
 # pass in city
 parser = argparse.ArgumentParser(
@@ -42,29 +45,34 @@ with open(filedir, "rb") as f:
     transit_metadata = pickle.load(f)
 
 with engine.connect() as conn:
-    stations_db = transit_metadata.tables["stations"]
+    train_stations_db = transit_metadata.tables["train_stations"]
     line_aggs = []
     for line in city_info["lines"].keys():
-        line_aggs.append(func.bool_or(stations_db.c[line]).label(line))
-    location_func = func.max(stations_db.c.location).label("location")
+        line_aggs.append(func.bool_or(train_stations_db.c[line]).label(line))
+    location_func = func.array_agg(train_stations_db.c.location)[1].label("location")
     query = select(
-        stations_db.c["station_name", "map_id"], location_func, *line_aggs
-    ).group_by(stations_db.c["station_name", "map_id"])
-    stations = pd.DataFrame(conn.execute(query))
+        train_stations_db.c["station_name", "map_id"], location_func, *line_aggs
+    ).group_by(train_stations_db.c["station_name", "map_id"])
+    train_stations = pd.DataFrame(conn.execute(query))
     station_order = pd.DataFrame(
-        conn.execute(select(transit_metadata.tables["station_order"]))
+        conn.execute(select(transit_metadata.tables["train_station_order"]))
     ).set_index("line")
     rider_data = transit_metadata.tables["rider_data"]
     avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
     query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
-    daily_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
+    daily_rail_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
+    train_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
+    bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+    bus_stops = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stops"])))
+    streets = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
 
+node_set = set()
+line_objects = set()
 # build network object
-# get list of stations
-station_set = set()
-for stop_id in stations.map_id.unique():
-    curr_stop = stations[stations.map_id == stop_id].iloc[0]
-    raw_location = literal_eval(curr_stop.location)
+# rail
+for stop_id in train_stations.map_id.unique():
+    curr_stop = train_stations[train_stations.map_id == stop_id].iloc[0]
+    raw_location = curr_stop.location
     # the below order was chosen to mirror the "x/y" coordinate convention typically used in mathematics
     # longitude is thought of as an "x" measurement here and latitude as the "y" measurement
     location = (float(raw_location["longitude"]), float(raw_location["latitude"]))
@@ -77,129 +85,228 @@ for stop_id in stations.map_id.unique():
         for line in city_info["lines"].keys()
         if line in available_lines
     ]
-    station_set.add(
-        Station(stop_id, curr_stop.station_name, location, available_lines, colors)
+    node_set.add(
+        Node(stop_id, curr_stop.station_name, location, available_lines, colors, node_type='rail')
+    )
+#bus stops
+bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bus_stops.available_routes]
+routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
+#removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
+valid_routes = set(bus_route_shapes.route).intersection(routes)
+
+# subline connection func
+def connect_closest(eps):
+    if len({val["id"] for val in eps.values()})<2:
+        return
+    else:
+        ep_list = list(eps.keys())
+        ids = {node["id"] for node in eps.values()}
+        dists = dict()
+        for identifier in ids:
+            curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
+            other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
+            for curr_ep in curr_seg:
+                for other_ep in other_segs:
+                    dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
+        closest = tuple(dists[min(dists.keys())])
+        route_connections.add(Connection(*closest, conn_type='bus'))
+        # give new id to endpoints of newly created line segment
+        invalid_ids = {eps[node]["id"] for node in closest}
+        for node in eps.keys():
+            if eps[node]["id"] in invalid_ids:
+                eps[node]["id"] = max(ids) + 1
+        connect_closest(eps)
+
+# detects bus routes
+for route in tqdm(valid_routes, desc = "Detecting bus routes"):
+    # this logic should be abstracted and used for rail lines as well.
+    curr_route = bus_route_shapes[bus_route_shapes.route == route]
+    mask = [route in row for row in bus_stops.available_routes]
+    curr_stops = bus_stops[mask]
+    curr_route = MultiLineString(curr_route["geometry"].iloc[0]["coordinates"])
+
+    # determine which subline points correspond to
+    # projection does not place point exactly on the line. 'tolerance' can be tweaked to adjust
+    tolerance = 0.0000001
+    sublines = dict()
+    for line in curr_route.geoms:
+        sublines[line] = []
+        for i, stop in curr_stops.iterrows():
+            point = stop.geometry["coordinates"]
+            if curr_route.interpolate(curr_route.project(Point(point))).buffer(tolerance).intersects(line):
+                sublines[line].append(stop)
+
+    route_connections = set()
+    route_stops = set()
+    end_points = dict()
+    subline_id = 0
+    num_loops = 0
+    for line in sublines.keys():
+        order = sorted(
+            [
+                (  # tuple order is important because sorted by default uses the first tuple value
+                    line.project(Point(stop.geometry["coordinates"])),
+                    Node(
+                        net_id=stop.system_stop,
+                        name=stop.public_name,
+                        location=Point(stop.geometry["coordinates"]),
+                        lines=stop.available_routes,
+                        colors="black",
+                        node_type="bus"
+                    )
+                )
+                for stop in sublines[line]
+            ],
+            key=lambda node: node[0]
+        )
+        if len(order) > 0:
+            first = order[0][1]
+            last = order[-1][1]
+            is_loop = (first == last) and (len(order) > 1)
+            if is_loop:
+                print(order)
+            end_points[first] = {
+                "id": subline_id,
+                "loop": is_loop
+            }
+            end_points[last] = {
+                "id": subline_id,
+                "loop": is_loop
+            }
+            subline_id += 1
+            route_stops = route_stops.union(set(order))
+            for i, item in enumerate(order[:-1]):
+                route_connections.add(
+                    Connection(
+                        station1=item[1],
+                        station2=order[i + 1][1],
+                        conn_type="bus"
+                    )
+                )
+    connect_closest(end_points)
+    line_objects.add(
+        Line(
+            stations=route_stops,
+            connections=route_connections,
+            name=route,
+            color="black",
+            weighted=True
+        )
     )
 
-# build lines
+# build rail lines
 # create list of connections for each line
-line_objects = set()
 for (
     line
 ) in (
     station_order.index
 ):  # cant use "lines" here because the lines may have different names
     id_list = station_order.loc[line, "order"]
+    # generate connections potentially by using trace data and coord lists?
     connections = set()
     for ind, station_id in enumerate(id_list[:-1]):
         station1 = {
-            station for station in station_set if station.network_id == station_id
+            station for station in node_set if station.network_id == station_id
         }.pop()
         station2 = {
-            station for station in station_set if station.network_id == id_list[ind + 1]
+            station for station in node_set if station.network_id == id_list[ind + 1]
         }.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {
         station
-        for station in station_set
+        for station in node_set
         if any([lyne in line for lyne in station.lines])
     }
-    true_line = [l for l in city_info["lines"].keys() if l in line][
-        0
-    ]  # resolves multiple endpoint issue
+    # resolves multiple endpoint issue
+    true_line = [l for l in city_info["lines"].keys() if l in line][0]
     line_color = city_info["lines"][true_line]
     line_objects.add(
-        Line(stations_in_line, connections, line, line_color, weighted=True)
+        Line(stations_in_line, connections, line, line_color, weighted=True, line_type="rail")
     )
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
-transport_network = Network(city, line_objects)
+transport_network = Network(city,
+                            line_objects,
+                            rail_shapes=train_line_shapes,
+                            bus_route_shapes=bus_route_shapes,
+                            street_shapes=streets
+                            )
 print("Network created.")
 
 if include_data:
-    # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-    def weighted_shortest_path(g, boardings, weight="distance"):
-        nodes = list(g)
-        index = sorted([node.network_id for node in nodes])
-        boardings = boardings[boardings.index.isin(index)]
-        total_boardings = float(boardings.avg_rides.sum())
-
-        path_lengths = pd.DataFrame(dict(nx.shortest_path_length(g, weight=weight)))
-        path_lengths.index = [i.network_id for i in path_lengths.index]
-        path_lengths.columns = [i.network_id for i in path_lengths.columns]
-        path_lengths = path_lengths.sort_index().sort_index(axis=1)
-        return (
-            np.matmul(
-                np.diag(boardings.to_numpy().flatten()).astype("float"),
-                path_lengths,
-            ).sum()
-            / total_boardings
-        ).mean()
+    from utils import weighted_shortest_path
+    from itertools import product
 
     # create a list of all connections that do not exist in graph (between lines only)
-    print("Fetching weighted average path lengths for all possible new connections...")
-    net_complement = nx.complement(transport_network.graph)
-    potential_new_connections = [
-        edge
-        for edge in net_complement.edges
-        if len(set(edge[0].lines) & set(edge[1].lines)) == 0
+    print("Fetching summary stats for all possible new connections...")
+    conn_lists = dict()
+    for node_type in transport_network.available_modes:
+        conn_lists[node_type] = [node for node in transport_network.nodes if node.node_type == node_type]
+    # streets direct to rail connections, rail to rail might be exhaustive for this approach.
+    street_to_rail = [
+        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(product(conn_lists['street'], conn_lists['rail']), desc="Generating new potential connections from street to rail")
     ]
+    rail_to_rail = [
+        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(product(conn_lists['rail'], conn_lists['rail']), desc="Generating new potential connections from rail to rail")
+        if len(set(st1.lines).intersection(set(st2.lines))) == 0
+    ]
+
+    potential_new_connections = rail_to_rail + street_to_rail
     # calculate statistics characterizing the network
     efficiency_stats = pd.DataFrame(
-        index=pd.MultiIndex.from_tuples(potential_new_connections),
+        index=pd.MultiIndex.from_tuples([(conn[0],conn[1]) for conn in potential_new_connections]),
         columns=[
             col
             for col in transit_metadata.tables["efficiency_stats"].c.keys()
-            if "station" not in col
-        ],  # removing index stations for later
+            if "node" not in col
+        ],  # removing index nodes for later
     )
-    for connection in tqdm(potential_new_connections):
-        station1, station2 = connection
-        new_conn = Connection(
-            station1, station2
-        )  # this is necessary as nx.compliment does not calculate edge distance
+    # research kubernetes and think about how to smartly pair down the sample size.
+    for connection in tqdm(
+            potential_new_connections[:5],
+            desc="Generating efficiency stats for all potential new connections"
+    ):
+        node1, node2, meta_data = connection
         improved_g = transport_network.graph.copy()
+        improved_g.add_edge(node1, node2, travel_resistance=meta_data["travel_resistance"])
 
-        improved_g.add_edge(station1, station2, distance=new_conn.distance)
-
+        weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.
         efficiency_stats.loc[connection, "mean_shortest_path_length"] = (
-            nx.average_shortest_path_length(improved_g, weight="distance")
+            nx.average_shortest_path_length(improved_g, weight=weight)
         )
         efficiency_stats.loc[connection, "weighted_shortest_path"] = (
-            weighted_shortest_path(improved_g, daily_boardings, weight="distance")
+            weighted_shortest_path(improved_g, daily_rail_boardings, weight=weight)
         )
         efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(
             improved_g
         )
         efficiency_stats.loc[connection, "barycenter"] = [
-            str(center) for center in nx.barycenter(improved_g, weight="distance")
+            str(center) for center in nx.barycenter(improved_g, weight=weight)
         ]
         efficiency_stats.loc[connection, "eccentricity"] = [
-            float(i) for i in nx.eccentricity(improved_g, weight="distance").values()
+            float(i) for i in nx.eccentricity(improved_g, weight=weight).values()
         ]
         efficiency_stats.loc[connection, "avg_clustering"] = nx.average_clustering(
-            improved_g, weight="distance"
+            improved_g, weight=weight
         )  # potentially more sensible to do this at the node level to detect neighborhoods
         efficiency_stats.loc[connection, "effective_graph_resistance"] = (
-            nx.effective_graph_resistance(improved_g, weight="distance")
+            nx.effective_graph_resistance(improved_g, weight=weight)
         )
-        page_dict = nx.pagerank(improved_g, weight="distance")
+        page_dict = nx.pagerank(improved_g, weight=weight)
         efficiency_stats.loc[connection, "pagerank"] = str(
             dict(zip([str(key) for key in page_dict.keys()], page_dict.values()))
         )
 
-        # efficiency_stats.loc[connection, "smallworld_sigma"] = nx.sigma(improved_g) # these numbers seem off, and it is very slow
-        # efficiency_stats.loc[connection, "smallworld_omega"] = nx.omega(improved_g) # I dont think this is a particularly good measure of a transit network
-        # efficiency_stats.loc[connection, "communicability"] = nx.communicability(improved_g) # This strikes me as detecting redundancy more than anything else
-
     print("Adding network stats to DB...")
     efficiency_stats = efficiency_stats.reset_index().rename(
-        columns={"level_0": "station1", "level_1": "station2"}
+        columns={"level_0": "node1", "level_1": "node2"}
     )
-    efficiency_stats.loc[:, ["station1", "station2"]] = efficiency_stats.loc[
-        :, ["station1", "station2"]
+    efficiency_stats.loc[:, ["node1", "node2"]] = efficiency_stats.loc[
+        :, ["node1", "node2"]
     ].astype(str)
     add_to_db(
         "chicago",
@@ -210,7 +317,6 @@ if include_data:
     print("Network stats added.")
 
 print("Pickling Network...")
-# pickle network object...
 directory = f"data/rt_networks/{city}_network.pkl"
 output = open(directory, "wb+")
 pickle.dump(transport_network, output)

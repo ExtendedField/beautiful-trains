@@ -1,13 +1,12 @@
 class Line:
-
-    name = ""  # usually a color or letter. "green line" or "M line" for example
-    color = ""
-    stations = set()
-    connections = set()
-    line_graph = None
-
     def __init__(
-        self, stations=None, connections=None, name=None, color=None, weighted=False
+            self,
+            stations=None,
+            connections=None,
+            name=None,
+            color=None,
+            weighted=False,
+            line_type=None,
     ):
         import networkx as nx
 
@@ -18,6 +17,10 @@ class Line:
         if connections is None:
             connections = set()
         self.connections = connections
+
+        if line_type is None:
+            line_type = ""
+        self.line_type = line_type
 
         if name is None:
             name = ""
@@ -33,7 +36,7 @@ class Line:
             [connection.get_connection_tuple(weighted) for connection in connections]
         )
 
-        # remove legacy stations with no connections
+        # remove inactive stations with no connections
         active_stations = [connection.station1 for connection in self.connections] + [
             connection.station2 for connection in self.connections
         ]
