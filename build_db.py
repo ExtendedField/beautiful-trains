@@ -61,7 +61,7 @@ if refresh:
     for table in tables:
         table.drop(engine)
 transit_metadata.create_all(engine)
-empty_tables = ["efficiency_stats"] # list of tables to be filled later
+empty_tables = ["efficiency_stats"]  # list of tables to be filled later
 for table in tables:
     if table.name in empty_tables:
         add_to_db(city, table, engine, client)
@@ -76,7 +76,7 @@ for table in tables:
             client,
             table_id=table_id,
             source_csv=local_dir,
-            query_params=table_name["query_params"]
+            query_params=table_name["query_params"],
         )
 
 print("Pickling DB Metadata...")

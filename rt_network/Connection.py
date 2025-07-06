@@ -29,9 +29,9 @@ class Connection:
         x_dist = long1 - long2
         y_dist = (lat1 - lat2) * cos(long2)
         # Euclidean distance.
-        self.travel_resistance = deglen * sqrt( # kms
-            x_dist**2 + y_dist**2
-        )  * resistances[conn_type]
+        self.travel_resistance = (
+            deglen * sqrt(x_dist**2 + y_dist**2) * resistances[conn_type]  # kms
+        )
 
     def __str__(self):
         return f"{self.station1.name}<->{self.station2.name}"
@@ -52,8 +52,8 @@ class Connection:
                     "travel_resistance": self.travel_resistance,
                     "connection_type": self.conn_type,
                     "lines": set(self.station1.lines + self.station2.lines),
-                    "colors": set(self.station1.colors + self.station2.colors)
-                }
+                    "colors": set(self.station1.colors + self.station2.colors),
+                },
             )
         else:
             return self.station1, self.station2

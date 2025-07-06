@@ -1,11 +1,11 @@
 class Network:
     def __init__(
-            self,
-            city=None,
-            lines=None,
-            rail_shapes=None,
-            bus_route_shapes=None,
-            street_shapes=None
+        self,
+        city=None,
+        lines=None,
+        rail_shapes=None,
+        bus_route_shapes=None,
+        street_shapes=None,
     ):
         """
         Represents the physical transportation network as a data structure. Has the ability to plot graph primitive
@@ -61,7 +61,10 @@ class Network:
         }
 
         # create intersection nodes and how they connect via streets
-        street_shapes.loc[:, "geometry"] = [MultiLineString(item["coordinates"]) for item in street_shapes.loc[:, "geometry"]]
+        street_shapes.loc[:, "geometry"] = [
+            MultiLineString(item["coordinates"])
+            for item in street_shapes.loc[:, "geometry"]
+        ]
         streets = gpd.GeoDataFrame(street_shapes, geometry="geometry").explode()
         street_g = mp.gdf_to_nx(streets)
         mapping = dict()
@@ -88,28 +91,27 @@ class Network:
             self.nodes_by_type[mode] = mode_nodes
             self.nodes = self.nodes.union(mode_nodes)
 
-        #stitch together layers
+        # stitch together layers
         node_list = np.array(list(self.nodes))
         self.tree = STRtree([node.location for node in node_list])
         layer_conns = set()
-        for node1 in tqdm(self.nodes_by_type['street'], desc="Stitching together graph layers"):
+        for node1 in tqdm(
+            self.nodes_by_type["street"], desc="Stitching together graph layers"
+        ):
             dist_thresh = 0.0008
-            neighborhood = node_list.take(self.tree.query(node1.location, predicate='dwithin', distance=dist_thresh)).tolist()
-            neighborhood = [
-                node
-                for node in neighborhood
-                if node.node_type != 'street'
-            ]
-            new_conns = {
-                Connection(
-                    node1,
-                    node2,
-                    conn_type='street'
+            neighborhood = node_list.take(
+                self.tree.query(
+                    node1.location, predicate="dwithin", distance=dist_thresh
                 )
-                for node2 in neighborhood
+            ).tolist()
+            neighborhood = [node for node in neighborhood if node.node_type != "street"]
+            new_conns = {
+                Connection(node1, node2, conn_type="street") for node2 in neighborhood
             }
             layer_conns = layer_conns.union(new_conns)
-        self.graph.add_edges_from([conn.get_connection_tuple(weighted=True) for conn in layer_conns])
+        self.graph.add_edges_from(
+            [conn.get_connection_tuple(weighted=True) for conn in layer_conns]
+        )
         connect_graph(self.graph, self.tree)
 
     def __str__(self):
@@ -126,7 +128,7 @@ class Network:
         rail=True,
         bus=True,
         streets=True,
-        graph_view=False
+        graph_view=False,
     ) -> None:
         """
         A function to plot a cities rapid transit network as an image, optionally adding in recommended new
@@ -166,47 +168,71 @@ class Network:
 
         with engine.connect() as conn:
             if streets:
-                streets_data = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
+                streets_data = pd.DataFrame(
+                    conn.execute(select(transit_metadata.tables["streets"]))
+                )
                 if graph_view:
-                    street_geoms = gen_graph_geoms(self.graph, 'street')
+                    street_geoms = gen_graph_geoms(self.graph, "street")
                 else:
-                    street_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in streets_data.geometry])
-                line_traces.append(gen_trace("lines",0.5, "grey", street_geoms))
-                street_corners = [node.location for node in self.nodes_by_type['street']]
+                    street_geoms = MultiLineString(
+                        [
+                            MultiLineString(segment["coordinates"])
+                            for segment in streets_data.geometry
+                        ]
+                    )
+                line_traces.append(gen_trace("lines", 0.5, "grey", street_geoms))
+                street_corners = [
+                    node.location for node in self.nodes_by_type["street"]
+                ]
                 node_traces.append(gen_trace("markers", 0.5, "grey", street_corners))
             if bus:
-                bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+                bus_route_shapes = pd.DataFrame(
+                    conn.execute(select(transit_metadata.tables["bus_route_shapes"]))
+                )
                 if graph_view:
-                    bus_geoms = gen_graph_geoms(self.graph, 'bus')
+                    bus_geoms = gen_graph_geoms(self.graph, "bus")
                 else:
-                    bus_geoms = MultiLineString([MultiLineString(segment["coordinates"]) for segment in bus_route_shapes.geometry])
+                    bus_geoms = MultiLineString(
+                        [
+                            MultiLineString(segment["coordinates"])
+                            for segment in bus_route_shapes.geometry
+                        ]
+                    )
                 line_traces.append(gen_trace("lines", 1, "black", bus_geoms))
-                bus_stops = [node.location for node in self.nodes_by_type['bus']]
+                bus_stops = [node.location for node in self.nodes_by_type["bus"]]
                 node_traces.append(gen_trace("markers", 1, "black", bus_stops))
             if rail:
-                rail_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
+                rail_line_shapes = pd.DataFrame(
+                    conn.execute(select(transit_metadata.tables["train_line_shapes"]))
+                )
                 for line in rail_line_shapes.lines.unique():
                     if len(line.split(",")) > 1:
                         line_color = "darkkhaki"
                     else:
                         line_name = line.lower().split(" ")[0]
-                        line_color = [line for line in self.lines if line_name in line.name][0].color
+                        line_color = [
+                            line for line in self.lines if line_name in line.name
+                        ][0].color
                     if graph_view:
-                        rail_geoms = gen_graph_geoms(self.graph,'rail', line_color)
+                        rail_geoms = gen_graph_geoms(self.graph, "rail", line_color)
                     else:
                         rail_geoms = MultiLineString(
                             [
                                 MultiLineString(line["coordinates"])
-                                for line in rail_line_shapes[rail_line_shapes.lines == line].geometry
+                                for line in rail_line_shapes[
+                                    rail_line_shapes.lines == line
+                                ].geometry
                             ]
                         )
                     line_traces.append(gen_trace("lines", 2, line_color, rail_geoms))
                     line_stations = [
                         node.location
-                        for node in self.nodes_by_type['rail']
+                        for node in self.nodes_by_type["rail"]
                         if line_color in node.colors
                     ]
-                    node_traces.append(gen_trace("markers", 2, line_color , line_stations))
+                    node_traces.append(
+                        gen_trace("markers", 2, line_color, line_stations)
+                    )
             if new_conn:
                 efficiency_stats = transit_metadata.tables["efficiency_stats"]
                 if asc:
@@ -214,11 +240,7 @@ class Network:
                 else:
                     ordering = efficiency_stats.c[optimization_stat].asc()
                 query = (
-                    select(
-                        efficiency_stats.c[
-                            "node1", "node2", optimization_stat
-                        ]
-                    )
+                    select(efficiency_stats.c["node1", "node2", optimization_stat])
                     .order_by(ordering)
                     .limit(conn_number)
                 )
@@ -230,9 +252,14 @@ class Network:
                         for node in best_conns.loc[:, col]
                         if str(stop) == node
                     ]
-                new_conn_geom = [[[row.node1.long(), row.node1.lat()], [row.node2.long(), row.node2.lat()]]
-                                 for i, row in best_conns[["node1", "node2"]].iterrows()]
-                line_traces.append(gen_trace("lines",2, "lawngreen", new_conn_geom))
+                new_conn_geom = [
+                    [
+                        [row.node1.long(), row.node1.lat()],
+                        [row.node2.long(), row.node2.lat()],
+                    ]
+                    for i, row in best_conns[["node1", "node2"]].iterrows()
+                ]
+                line_traces.append(gen_trace("lines", 2, "lawngreen", new_conn_geom))
 
         centering_layer = min(self.nodes_by_type.values(), key=len)
         center_coords = barycenter(subgraph(self.graph, centering_layer))[0].location
@@ -260,11 +287,11 @@ class Network:
             ),
         )
 
-        for trace in line_traces+node_traces:
+        for trace in line_traces + node_traces:
             fig.add_trace(trace)
         fig.show()
 
-    def plot_subgraphs(self, center=(0,0)):
+    def plot_subgraphs(self, center=(0, 0)):
         """
         Plots all disconnected sub-graphs of network. Largely used for testing and analysis if the graph primitive
         ends up being diconnected.
@@ -300,7 +327,7 @@ class Network:
                         y=-0.002,
                     )
                 ],
-                map=dict(center=center, zoom=10, bearing=0, pitch=0, style='light'),
+                map=dict(center=center, zoom=10, bearing=0, pitch=0, style="light"),
             ),
         )
 
@@ -311,8 +338,12 @@ class Network:
             edges = g.edges()
             line_geoms = MultiLineString(
                 [
-                    [(edge[0].location.x, edge[0].location.y), (edge[1].location.x, edge[1].location.y)]
-                    for edge in edges]
+                    [
+                        (edge[0].location.x, edge[0].location.y),
+                        (edge[1].location.x, edge[1].location.y),
+                    ]
+                    for edge in edges
+                ]
             )
             node_geoms = [node.location for node in nodes]
             line_traces.append(gen_trace("lines", 1, "black", line_geoms))

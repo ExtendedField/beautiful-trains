@@ -66,9 +66,9 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "train_line_shapes":{
+    "train_line_shapes": {
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "lines": {
@@ -92,9 +92,9 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "bus_route_shapes":{
+    "bus_route_shapes": {
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "route": {
@@ -118,7 +118,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "bus_stops":{
+    "bus_stops": {
         "system_stop": {
             "type": Numeric,
             "params": {"args": [], "kwargs": {}},
@@ -156,7 +156,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "streets":{
+    "streets": {
         "section_id": {
             "type": Integer,
             "params": {"args": [], "kwargs": {"primary_key": True}},
@@ -174,7 +174,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "length": {

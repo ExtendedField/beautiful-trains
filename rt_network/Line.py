@@ -1,12 +1,12 @@
 class Line:
     def __init__(
-            self,
-            stations=None,
-            connections=None,
-            name=None,
-            color=None,
-            weighted=False,
-            line_type=None,
+        self,
+        stations=None,
+        connections=None,
+        name=None,
+        color=None,
+        weighted=False,
+        line_type=None,
     ):
         """
         Object containing metadata regarding a line in the transit network. Used for buses, trains, street cars, or any

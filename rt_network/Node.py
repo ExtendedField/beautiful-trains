@@ -1,12 +1,12 @@
 class Node:
     def __init__(
-            self,
-            net_id=None,
-            name="",
-            location=(0, 0),
-            lines=None,
-            colors=None,
-            node_type="street"
+        self,
+        net_id=None,
+        name="",
+        location=(0, 0),
+        lines=None,
+        colors=None,
+        node_type="street",
     ):
         """
         A data structure for node information within the urban rapid transit network.

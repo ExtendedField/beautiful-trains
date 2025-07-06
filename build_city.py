@@ -19,7 +19,7 @@ import numpy as np
 from sqlalchemy import create_engine, select, func
 import networkx as nx
 from tqdm import tqdm
-from shapely import(
+from shapely import (
     MultiLineString,
     Point,
 )
@@ -66,8 +66,12 @@ with engine.connect() as conn:
     avg_rides = func.avg(rider_data.c.rides).label("avg_rides")
     query = select(rider_data.c.station_id, avg_rides).group_by(rider_data.c.station_id)
     daily_rail_boardings = pd.DataFrame(conn.execute(query)).set_index("station_id")
-    train_line_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["train_line_shapes"])))
-    bus_route_shapes = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_route_shapes"])))
+    train_line_shapes = pd.DataFrame(
+        conn.execute(select(transit_metadata.tables["train_line_shapes"]))
+    )
+    bus_route_shapes = pd.DataFrame(
+        conn.execute(select(transit_metadata.tables["bus_route_shapes"]))
+    )
     bus_stops = pd.DataFrame(conn.execute(select(transit_metadata.tables["bus_stops"])))
     streets = pd.DataFrame(conn.execute(select(transit_metadata.tables["streets"])))
 
@@ -91,16 +95,25 @@ for stop_id in train_stations.map_id.unique():
         if line in available_lines
     ]
     node_set.add(
-        Node(stop_id, curr_stop.station_name, location, available_lines, colors, node_type='rail')
+        Node(
+            stop_id,
+            curr_stop.station_name,
+            location,
+            available_lines,
+            colors,
+            node_type="rail",
+        )
     )
-#bus stops
-bus_stops.loc[:, "available_routes"] = [route_str.split(",") for route_str in bus_stops.available_routes]
+# bus stops
+bus_stops.loc[:, "available_routes"] = [
+    route_str.split(",") for route_str in bus_stops.available_routes
+]
 routes = {route for route_lst in bus_stops.available_routes for route in route_lst}
-#removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
+# removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
 
 # detects bus routes
-for route in tqdm(valid_routes, desc = "Detecting bus routes"):
+for route in tqdm(valid_routes, desc="Detecting bus routes"):
     # this logic should be abstracted and used for rail lines as well.
     curr_route = bus_route_shapes[bus_route_shapes.route == route]
     mask = [route in row for row in bus_stops.available_routes]
@@ -115,7 +128,11 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
         sublines[line] = []
         for i, stop in curr_stops.iterrows():
             point = stop.geometry["coordinates"]
-            if curr_route.interpolate(curr_route.project(Point(point))).buffer(tolerance).intersects(line):
+            if (
+                curr_route.interpolate(curr_route.project(Point(point)))
+                .buffer(tolerance)
+                .intersects(line)
+            ):
                 sublines[line].append(stop)
 
     route_connections = set()
@@ -134,12 +151,12 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
                         location=Point(stop.geometry["coordinates"]),
                         lines=stop.available_routes,
                         colors="black",
-                        node_type="bus"
-                    )
+                        node_type="bus",
+                    ),
                 )
                 for stop in sublines[line]
             ],
-            key=lambda node: node[0]
+            key=lambda node: node[0],
         )
         if len(order) > 0:
             first = order[0][1]
@@ -147,22 +164,14 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
             is_loop = (first == last) and (len(order) > 1)
             if is_loop:
                 print(order)
-            end_points[first] = {
-                "id": subline_id,
-                "loop": is_loop
-            }
-            end_points[last] = {
-                "id": subline_id,
-                "loop": is_loop
-            }
+            end_points[first] = {"id": subline_id, "loop": is_loop}
+            end_points[last] = {"id": subline_id, "loop": is_loop}
             subline_id += 1
             route_stops = route_stops.union(set(order))
             for i, item in enumerate(order[:-1]):
                 route_connections.add(
                     Connection(
-                        station1=item[1],
-                        station2=order[i + 1][1],
-                        conn_type="bus"
+                        station1=item[1], station2=order[i + 1][1], conn_type="bus"
                     )
                 )
     connect_closest(end_points, route_connections)
@@ -172,7 +181,7 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
             connections=route_connections,
             name=route,
             color="black",
-            weighted=True
+            weighted=True,
         )
     )
 
@@ -195,25 +204,31 @@ for (
         }.pop()
         connections.add(Connection(station1, station2))
     stations_in_line = {
-        station
-        for station in node_set
-        if any([lyne in line for lyne in station.lines])
+        station for station in node_set if any([lyne in line for lyne in station.lines])
     }
     # resolves multiple endpoint issue
     true_line = [l for l in city_info["lines"].keys() if l in line][0]
     line_color = city_info["lines"][true_line]
     line_objects.add(
-        Line(stations_in_line, connections, line, line_color, weighted=True, line_type="rail")
+        Line(
+            stations_in_line,
+            connections,
+            line,
+            line_color,
+            weighted=True,
+            line_type="rail",
+        )
     )
 
 print(f"Generating {city}'s Rapid Transit Network object...")
 # generate network connections
-transport_network = Network(city,
-                            line_objects,
-                            rail_shapes=train_line_shapes,
-                            bus_route_shapes=bus_route_shapes,
-                            street_shapes=streets
-                            )
+transport_network = Network(
+    city,
+    line_objects,
+    rail_shapes=train_line_shapes,
+    bus_route_shapes=bus_route_shapes,
+    street_shapes=streets,
+)
 print("Network created.")
 
 # TODO: find a way to analyze impact of changing the travel resistance of connections on graph summary stats.
@@ -225,22 +240,32 @@ if include_data:
     print("Fetching summary stats for all possible new connections...")
     conn_lists = dict()
     for node_type in transport_network.available_modes:
-        conn_lists[node_type] = [node for node in transport_network.nodes if node.node_type == node_type]
+        conn_lists[node_type] = [
+            node for node in transport_network.nodes if node.node_type == node_type
+        ]
     # streets direct to rail connections, rail to rail might be exhaustive for this approach.
     street_to_rail = [
-        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
-        for st1, st2 in tqdm(product(conn_lists['street'], conn_lists['rail']), desc="Generating new potential connections from street to rail")
+        Connection(st1, st2, conn_type="rail").get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(
+            product(conn_lists["street"], conn_lists["rail"]),
+            desc="Generating new potential connections from street to rail",
+        )
     ]
     rail_to_rail = [
-        Connection(st1,st2,conn_type='rail').get_connection_tuple(weighted=True)
-        for st1, st2 in tqdm(product(conn_lists['rail'], conn_lists['rail']), desc="Generating new potential connections from rail to rail")
+        Connection(st1, st2, conn_type="rail").get_connection_tuple(weighted=True)
+        for st1, st2 in tqdm(
+            product(conn_lists["rail"], conn_lists["rail"]),
+            desc="Generating new potential connections from rail to rail",
+        )
         if len(set(st1.lines).intersection(set(st2.lines))) == 0
     ]
 
     potential_new_connections = rail_to_rail + street_to_rail
     # calculate statistics characterizing the network
     efficiency_stats = pd.DataFrame(
-        index=pd.MultiIndex.from_tuples([(conn[0],conn[1]) for conn in potential_new_connections]),
+        index=pd.MultiIndex.from_tuples(
+            [(conn[0], conn[1]) for conn in potential_new_connections]
+        ),
         columns=[
             col
             for col in transit_metadata.tables["efficiency_stats"].c.keys()
@@ -249,12 +274,14 @@ if include_data:
     )
     # research kubernetes and think about how to smartly pair down the sample size.
     for connection in tqdm(
-            potential_new_connections[:5],
-            desc="Generating efficiency stats for all potential new connections"
+        potential_new_connections[:5],
+        desc="Generating efficiency stats for all potential new connections",
     ):
         node1, node2, meta_data = connection
         improved_g = transport_network.graph.copy()
-        improved_g.add_edge(node1, node2, travel_resistance=meta_data["travel_resistance"])
+        improved_g.add_edge(
+            node1, node2, travel_resistance=meta_data["travel_resistance"]
+        )
 
         weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.

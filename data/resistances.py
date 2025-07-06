@@ -3,7 +3,7 @@
 # A higher weighting corresponds to a less efficient transportation method.
 ###
 resistances = {
-    'rail':1,
-    'bus': 2,
-    'street' : 5,
+    "rail": 1,
+    "bus": 2,
+    "street": 5,
 }

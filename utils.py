@@ -7,6 +7,7 @@ import networkx as nx
 from shapely import LineString, MultiLineString
 from rt_network.Connection import Connection
 
+
 def build_table(metadata, table_name, schema):
     """
     Creates and returns an SQLAlchemy table object from a simple schema.
@@ -82,7 +83,7 @@ def add_to_db(
             chunk_size = 999  # socrata only allows 1k rows per request.
             num_chunks = round(num_rows / chunk_size) + 1
             offsets = [chunk_size * x for x in range(num_chunks)]
-            sleep(0.5) # trying to resolve timeout between large table fetches
+            sleep(0.5)  # trying to resolve timeout between large table fetches
             data = client.get(table_id, offset=offsets[0], **query_params)
             if len(offsets) > 1:
                 for offset in tqdm(offsets):
@@ -125,6 +126,7 @@ def add_to_db(
             conn.execute(query)
         conn.commit()
 
+
 def read_city_json(city, json_dir):
     """
     Extracts a specific city's metadata from city_info.json
@@ -135,6 +137,7 @@ def read_city_json(city, json_dir):
     """
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
+
 
 def weighted_shortest_path(g, boardings, weight="travel_resistance"):
     """
@@ -173,9 +176,10 @@ def gen_trace(trace_type, line_width, color, geom_data):
                or list[Point] shapely Point objects.
     """
     from plotly import graph_objects as go
+
     edge_x = []
     edge_y = []
-    if trace_type =='lines':
+    if trace_type == "lines":
         for segment in geom_data.geoms:
             if ~segment.is_empty:
                 for coord in segment.coords:
@@ -199,6 +203,7 @@ def gen_trace(trace_type, line_width, color, geom_data):
         hoverinfo="none",
         mode=trace_type,
     )
+
 
 def project(lam, phi, proj="mercator", deg=True):
     """
@@ -237,16 +242,15 @@ def gen_graph_geoms(g, layer, color=None):
     :returns: MultiLineString in correct format for plotting
     """
     if color:
-        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
+        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(
+            u.colors + v.colors
+        )
     else:
         condition = lambda u, v: layer in {u.node_type, v.node_type}
     return MultiLineString(
-        [
-            LineString((u.location, v.location))
-            for u, v in g.edges()
-            if condition(u, v)
-        ]
+        [LineString((u.location, v.location)) for u, v in g.edges() if condition(u, v)]
     )
+
 
 def connect_graph(g, tree):
     """
@@ -263,9 +267,7 @@ def connect_graph(g, tree):
         node_list = np.array(list(g.nodes()))
         main_g = max(nx.connected_components(g), key=len)
         discon_subgs = [
-            g.subgraph(c)
-            for c in nx.connected_components(g)
-            if len(c) < len(main_g)
+            g.subgraph(c) for c in nx.connected_components(g) if len(c) < len(main_g)
         ]
         target = discon_subgs[0]
         new_edges = []
@@ -277,14 +279,21 @@ def connect_graph(g, tree):
         while len(valid_targs) < 1:
             valid_targs += [
                 n
-                for n in node_list[tree.query(starting.location, predicate='dwithin', distance=dist)]
+                for n in node_list[
+                    tree.query(starting.location, predicate="dwithin", distance=dist)
+                ]
                 if n not in invalid_nodes
             ]
             dist += increment
         ending = valid_targs[0]
-        new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
+        new_edges.append(
+            Connection(starting, ending, conn_type="street").get_connection_tuple(
+                weighted=True
+            )
+        )
     g.add_edges_from(new_edges)
     connect_graph(g, tree)
+
 
 def connect_closest(eps, route_connections):
     """
@@ -293,20 +302,23 @@ def connect_closest(eps, route_connections):
     :param eps: set of endpoints
     :param route_connections: set of connections for the current route (bus line, rail line, etc.)
     """
-    if len({val["id"] for val in eps.values()})<2:
+    if len({val["id"] for val in eps.values()}) < 2:
         return
     else:
         ep_list = list(eps.keys())
         ids = {node["id"] for node in eps.values()}
         dists = dict()
         for identifier in ids:
-            curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
-            other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
+            curr_seg = {ep for ep in ep_list if eps[ep]["id"] == identifier}
+            other_segs = {ep for ep in ep_list if eps[ep]["id"] != identifier}
             for curr_ep in curr_seg:
                 for other_ep in other_segs:
-                    dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
+                    dists[curr_ep.location.distance(other_ep.location)] = {
+                        curr_ep,
+                        other_ep,
+                    }
         closest = tuple(dists[min(dists.keys())])
-        route_connections.add(Connection(*closest, conn_type='bus'))
+        route_connections.add(Connection(*closest, conn_type="bus"))
         # give new id to endpoints of newly created line segment
         invalid_ids = {eps[node]["id"] for node in closest}
         for node in eps.keys():
