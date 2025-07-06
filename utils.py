@@ -8,6 +8,13 @@ from shapely import LineString, MultiLineString
 from rt_network.Connection import Connection
 
 def build_table(metadata, table_name, schema):
+    """
+    Creates and returns an SQLAlchemy table object from a simple schema.
+
+    :param metadata: SQLAlchemy metadata object for the database.
+    :param table_name: table name
+    :param schema: desired schema imported from schemas.py
+    """
     from sqlalchemy import (
         Table,
         Column,
@@ -43,7 +50,17 @@ def add_to_db(
     query_params=None,
 ):
     """
-    If requested data does not exist in the database, this downloads it and adds it to the db
+    If requested data does not exist in the database, this downloads it, loads it from csv, or loads it from DataFrame
+    and adds it to the db.
+
+    :param city: city name
+    :param table: table name
+    :param engine: SQLAlchemy engine object
+    :param client: client used to download remote data. Optional if csv or df is passed
+    :param table_id: remote server table id
+    :param source_csv: a csv from which the db table will be created
+    :param source_df: a DataFrame from which the db table will be created
+    :param query_params: any query parameters used for an SQL style query of a data server
     """
     from sqlalchemy.dialects.postgresql import insert
 
@@ -109,10 +126,25 @@ def add_to_db(
         conn.commit()
 
 def read_city_json(city, json_dir):
+    """
+    Extracts a specific city's metadata from city_info.json
+
+    :param city: city name
+    :param json_dir: directory of city_info.json
+    :returns: dictionary loaded from json
+    """
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
 
 def weighted_shortest_path(g, boardings, weight="travel_resistance"):
+    """
+    Calculates the average shortest path between network nodes weighted by daily boardings at the node.
+
+    :param g: NetworkX graph object
+    :param boardings: DataFrame of daily boardings at each station
+    :param weight: the edge attribute by which to weight.
+    :returns: mean-weighted-shortest-path length
+    """
     # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
     nodes = list(g)
     index = sorted([node.network_id for node in nodes])
@@ -196,6 +228,14 @@ def project(lam, phi, proj="mercator", deg=True):
 
 
 def gen_graph_geoms(g, layer, color=None):
+    """
+    Generates shapely geometry objects to be used for plotting from a NetworkX graph object
+
+    :param g: NetworkX graph object
+    :param layer: layer of graph (rail, bus, street, etc.)
+    :param color: target color for filtering layer down to specific line
+    :returns: MultiLineString in correct format for plotting
+    """
     if color:
         condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
     else:
@@ -209,6 +249,13 @@ def gen_graph_geoms(g, layer, color=None):
     )
 
 def connect_graph(g, tree):
+    """
+    Takes a disconnected graph and recursively stitches it back together to create a fully connected graph by connecting
+    close points on two disconnected sub-graphs.
+
+    :param g: NetworkX graph object
+    :param tree: STRTree of all graph nodes
+    """
     if nx.is_connected(g):
         return
     else:
@@ -238,3 +285,31 @@ def connect_graph(g, tree):
         new_edges.append(Connection(starting, ending, conn_type='street').get_connection_tuple(weighted=True))
     g.add_edges_from(new_edges)
     connect_graph(g, tree)
+
+def connect_closest(eps, route_connections):
+    """
+    Connects closest two endpoints in a set which do not belong to the same continuous line segment.
+
+    :param eps: set of endpoints
+    :param route_connections: set of connections for the current route (bus line, rail line, etc.)
+    """
+    if len({val["id"] for val in eps.values()})<2:
+        return
+    else:
+        ep_list = list(eps.keys())
+        ids = {node["id"] for node in eps.values()}
+        dists = dict()
+        for identifier in ids:
+            curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
+            other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
+            for curr_ep in curr_seg:
+                for other_ep in other_segs:
+                    dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
+        closest = tuple(dists[min(dists.keys())])
+        route_connections.add(Connection(*closest, conn_type='bus'))
+        # give new id to endpoints of newly created line segment
+        invalid_ids = {eps[node]["id"] for node in closest}
+        for node in eps.keys():
+            if eps[node]["id"] in invalid_ids:
+                eps[node]["id"] = max(ids) + 1
+        connect_closest(eps, route_connections)

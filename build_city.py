@@ -1,3 +1,8 @@
+###
+# creates city network object using station locations as well as train a bus line geometries. Additionally, extracts
+# the impact of new connections on network summary statistics in order to recommend most impactful new connections.
+###
+
 import pandas as pd
 
 # consider storing all these classes in on file since they are rather compact presently
@@ -6,7 +11,7 @@ from rt_network.Connection import Connection
 from rt_network.Line import Line
 from rt_network.Network import Network
 
-from utils import add_to_db
+from utils import add_to_db, connect_closest
 import pickle
 import argparse
 from utils import read_city_json
@@ -94,29 +99,6 @@ routes = {route for route_lst in bus_stops.available_routes for route in route_l
 #removes extraneous lines. mostly due to data inconsistencies. chicago only has 2 mislabeled lines
 valid_routes = set(bus_route_shapes.route).intersection(routes)
 
-# subline connection func
-def connect_closest(eps):
-    if len({val["id"] for val in eps.values()})<2:
-        return
-    else:
-        ep_list = list(eps.keys())
-        ids = {node["id"] for node in eps.values()}
-        dists = dict()
-        for identifier in ids:
-            curr_seg = {ep for ep in ep_list if eps[ep]["id"]==identifier}
-            other_segs = {ep for ep in ep_list if eps[ep]["id"]!=identifier}
-            for curr_ep in curr_seg:
-                for other_ep in other_segs:
-                    dists[curr_ep.location.distance(other_ep.location)] = {curr_ep, other_ep}
-        closest = tuple(dists[min(dists.keys())])
-        route_connections.add(Connection(*closest, conn_type='bus'))
-        # give new id to endpoints of newly created line segment
-        invalid_ids = {eps[node]["id"] for node in closest}
-        for node in eps.keys():
-            if eps[node]["id"] in invalid_ids:
-                eps[node]["id"] = max(ids) + 1
-        connect_closest(eps)
-
 # detects bus routes
 for route in tqdm(valid_routes, desc = "Detecting bus routes"):
     # this logic should be abstracted and used for rail lines as well.
@@ -183,7 +165,7 @@ for route in tqdm(valid_routes, desc = "Detecting bus routes"):
                         conn_type="bus"
                     )
                 )
-    connect_closest(end_points)
+    connect_closest(end_points, route_connections)
     line_objects.add(
         Line(
             stations=route_stops,
@@ -234,6 +216,7 @@ transport_network = Network(city,
                             )
 print("Network created.")
 
+# TODO: find a way to analyze impact of changing the travel resistance of connections on graph summary stats.
 if include_data:
     from utils import weighted_shortest_path
     from itertools import product

@@ -1,3 +1,8 @@
+###
+# script used for analyzing the network object to do things like plot the network shape or graph primitive or
+# report specific summary stats about the network.
+###
+
 import pickle
 import argparse
 

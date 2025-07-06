@@ -1,7 +1,7 @@
-# contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
-
+###
+# contains schemas for required PostgreSQL tables
+###
 from sqlalchemy import (
-    # ForeignKey,
     Integer,
     Numeric,
     String,
@@ -11,7 +11,17 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
-# schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
+# schema structure ->
+# "table_name": {
+#     "column_name": {
+#         "type": type,
+#         "params": {
+#             "args": [],
+#             "kwargs": {}
+#         }
+#     },
+# }
+
 schemas = {
     "train_station_order": {
         "line": {
@@ -222,9 +232,4 @@ schemas = {
         "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
-    # "train_timings":{
-    #     "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-    #     "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
-    #     "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
-    # }, # uncomment when data is located
 }

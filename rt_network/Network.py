@@ -7,6 +7,30 @@ class Network:
             bus_route_shapes=None,
             street_shapes=None
     ):
+        """
+        Represents the physical transportation network as a data structure. Has the ability to plot graph primitive
+        or physical layout of network on a map.
+
+        :param city: city where this network is found
+        :param lines: available lines in network. Includes rail, bus, streetcar, etc.
+        :param rail_shapes: physical geometries of rail connections
+        :param bus_route_shapes: physical geometries of bus routes
+        :param street_shapes: physical geometries of streets
+
+        Attributes
+            :rail_shapes: physical geometries of rail connections
+            :bus_route_shapes: physical geometries of bus routes
+            :street_shapes: physical geometries of streets
+            :city: city where the network is found
+            :lines: available lines in network. Includes rail, bus, streetcar, etc.
+            :nodes_by_type: dictionary whose keys are the transport modes (rail, bus, etc.) and whose values are lists
+                            of nodes. (e.g. {"transport_mode":[Node], etc.}
+            :connections: set of all network connections
+            :graph: graph primitive of entire network
+            :available_modes: available transport modes (rail, bus, etc.)
+            :nodes: set of al nodes in network
+            :tree: STRtree used for spacial querying to locate nearest neighbors
+        """
         import networkx as nx
         import geopandas as gpd
         from shapely import MultiLineString, STRtree
@@ -107,6 +131,16 @@ class Network:
         """
         A function to plot a cities rapid transit network as an image, optionally adding in recommended new
         connections.
+
+        :param new_conn: boolean indicating to plot recommended network improvements
+        :param optimization_stat: what network statistic should be used to determine the best new connections
+        :param asc: true if 'lower is better' for the passed statistic. False if 'higher is better'
+        :param conn_number: number of new connections to plot
+        :param style: map style to be used by pyplot
+        :param rail: boolean indicating to plot rail connections
+        :param bus: boolean indicating to plot bus lines
+        :param streets: boolean indicating to plot city streets
+        :param graph_view: True to plot graph primitive, False to plot physical geometries
         """
         # reference link: https://plotly.com/python/network-graphs/
         import plotly.graph_objects as go
@@ -231,6 +265,12 @@ class Network:
         fig.show()
 
     def plot_subgraphs(self, center=(0,0)):
+        """
+        Plots all disconnected sub-graphs of network. Largely used for testing and analysis if the graph primitive
+        ends up being diconnected.
+
+        :param center: latitude and longitude location on which to center the plot
+        """
         from networkx import connected_components
         from plotly import graph_objects as go
         from shapely import MultiLineString

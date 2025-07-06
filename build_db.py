@@ -1,3 +1,10 @@
+###
+# Creates PostgreSQL database to store all data required to create and analyze a city's rapid transit network.
+# city_name: name of city for which the database will be created
+# --refresh, -r indicates if the data is to be fully refreshed (e.g. deleted and reuploaded)
+# --table accepts a specific table if only one table needs to be created or refreshed
+###
+
 from utils import add_to_db, read_city_json, build_table
 import argparse
 from data.dbmetadata.schemas import schemas
