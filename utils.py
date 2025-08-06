@@ -39,7 +39,7 @@ def build_table(metadata, table_name, schema):
 
     return table
 
-
+# TODO: split into 3 functions, one for each case handled by this one, and refactor acordingly in build_db
 def add_to_db(
     city,
     table,
@@ -167,6 +167,7 @@ def weighted_shortest_path(g, boardings, weight="travel_resistance"):
     ).mean()
 
 
+#TODO: split into two functions, one for lines and one for points and refactor in Network.py accordingly.
 def gen_trace(trace_type, line_width, color, geom_data):
     """
     trace_type: 'line' or 'marker'
@@ -204,7 +205,7 @@ def gen_trace(trace_type, line_width, color, geom_data):
         mode=trace_type,
     )
 
-
+#TODO: remove parameterization and rename project_mercator
 def project(lam, phi, proj="mercator", deg=True):
     """
     Projects latitude (phi) and longitude (lam) to the cartesian system using the specified projection formula.

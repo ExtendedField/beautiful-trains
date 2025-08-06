@@ -44,6 +44,8 @@ class Connection:
         :returns: tuple of stations or stations with dictionary of metadata.
                   (station1, station2) or (station1, station2, {metadata})
         """
+
+        #TODO: split into two functions. something like get_weighted, get_unweighted. Refactor accordingly.
         if weighted:
             return (
                 self.station1,

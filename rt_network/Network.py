@@ -118,6 +118,8 @@ class Network:
         return f"{self.city}'s transit network. Number of rail lines: {len(self.lines)}\nTotal nodes: {len(self.nodes)}"
 
     # TODO: implement a voronoi cell plotting function once all nodes are added
+    # TODO: change to something like: plot_graph or plot_map functions. Decide about subdividing for each layer, and
+    #       if there is a clean way to add supporting functions to avoid repeating code.
     def plot_map(
         self,
         new_conn=False,
