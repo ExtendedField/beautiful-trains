@@ -1,7 +1,7 @@
-# contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
-
+###
+# contains schemas for required PostgreSQL tables
+###
 from sqlalchemy import (
-    # ForeignKey,
     Integer,
     Numeric,
     String,
@@ -11,7 +11,17 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
-# schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
+# schema structure ->
+# "table_name": {
+#     "column_name": {
+#         "type": type,
+#         "params": {
+#             "args": [],
+#             "kwargs": {}
+#         }
+#     },
+# }
+
 schemas = {
     "train_station_order": {
         "line": {
@@ -56,9 +66,9 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "train_line_shapes":{
+    "train_line_shapes": {
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "lines": {
@@ -82,9 +92,9 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "bus_route_shapes":{
+    "bus_route_shapes": {
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "route": {
@@ -108,7 +118,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "bus_stops":{
+    "bus_stops": {
         "system_stop": {
             "type": Numeric,
             "params": {"args": [], "kwargs": {}},
@@ -146,7 +156,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
     },
-    "streets":{
+    "streets": {
         "section_id": {
             "type": Integer,
             "params": {"args": [], "kwargs": {"primary_key": True}},
@@ -164,7 +174,7 @@ schemas = {
             "params": {"args": [], "kwargs": {}},
         },
         "geometry": {
-            "type": JSON, #might need string instead
+            "type": JSON,  # might need string instead
             "params": {"args": [], "kwargs": {}},
         },
         "length": {
@@ -222,9 +232,4 @@ schemas = {
         "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
         "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
-    # "train_timings":{
-    #     "station_id": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-    #     "day": {"type": Date, "params": {"args": [], "kwargs": {}}},
-    #     "arrival_times": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
-    # }, # uncomment when data is located
 }

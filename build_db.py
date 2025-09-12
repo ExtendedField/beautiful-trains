@@ -1,3 +1,10 @@
+###
+# Creates PostgreSQL database to store all data required to create and analyze a city's rapid transit network.
+# city_name: name of city for which the database will be created
+# --refresh, -r indicates if the data is to be fully refreshed (e.g. deleted and reuploaded)
+# --table accepts a specific table if only one table needs to be created or refreshed
+###
+
 from utils import add_to_db, read_city_json, build_table
 import argparse
 from data.dbmetadata.schemas import schemas
@@ -25,7 +32,6 @@ table_info = city_info["tables"]
 # below block will expand as new apis are added
 if city_info["client_api"] == "socrata":
     from sodapy import Socrata
-
     client = Socrata(city_info["website"], city_info["token"])
 else:
     raise Exception("Unknown client id. Please try another")
@@ -54,8 +60,9 @@ if refresh:
     for table in tables:
         table.drop(engine)
 transit_metadata.create_all(engine)
-empty_tables = ["efficiency_stats"] # list of tables to be filled later
+empty_tables = ["efficiency_stats"]  # list of tables to be filled later
 for table in tables:
+    # TODO: make two loops, one for empty tables, and one for the reast to remove this 'if' stmt
     if table.name in empty_tables:
         add_to_db(city, table, engine, client)
     else:
@@ -69,7 +76,7 @@ for table in tables:
             client,
             table_id=table_id,
             source_csv=local_dir,
-            query_params=table_name["query_params"]
+            query_params=table_name["query_params"],
         )
 
 print("Pickling DB Metadata...")
