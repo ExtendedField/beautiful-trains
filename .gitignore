@@ -2,4 +2,5 @@
 venv/*
 *.pkl
 *__pycache__*
-
+cache/*
+logs/*
