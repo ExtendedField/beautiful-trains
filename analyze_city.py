@@ -1,5 +1,12 @@
+###
+# script used for analyzing the network object to do things like plot the network shape or graph primitive or
+# report specific summary stats about the network.
+###
+
 import pickle
 import argparse
+
+import networkx as nx
 
 # pass in city
 parser = argparse.ArgumentParser(
@@ -14,10 +21,17 @@ filedir = f"data/rt_networks/{city}_network.pkl"
 with open(filedir, "rb") as f:
     rt_network = pickle.load(f)
 
-print("\nCurrent rail network summary stats:")
-print(f"Clustering Coefficient: {rt_network.glob_cluster_coef}")
-print(f"Average Path Length: {rt_network.avg_path_len}")
-print(f"Degree Distribution: {rt_network.degree_dist}\n")
-
 # analysis and behavior can be done here
-rt_network.plot(show_new_conn=True)
+# rt_network.plot_map(
+#     optimization_stat="mean_shortest_path_length",
+#     asc=True,
+#     conn_number=10,
+#     style="light",
+#     streets=True,
+#     bus=True,
+#     rail=True,
+#     #new_conn=True,
+#     graph_view=True
+# )
+print([c.travel_resistance for c in rt_network.connections][0])
+print([len(c) for c in nx.connected_components(rt_network.graph)])

@@ -1,8 +1,9 @@
-# contains schema metadata required to construct tables in PostgreSQL database using SQLAlchemy
-
+###
+# contains schemas for required PostgreSQL tables
+###
 from sqlalchemy import (
-    # ForeignKey,
     Integer,
+    Numeric,
     String,
     Date,
     Boolean,
@@ -10,34 +11,26 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
-# schema structure -> "table_name":{"column_name": {"type": type, "params": {"args": [], "kwargs": {}})}
+# schema structure ->
+# "table_name": {
+#     "column_name": {
+#         "type": type,
+#         "params": {
+#             "args": [],
+#             "kwargs": {}
+#         }
+#     },
+# }
+
 schemas = {
-    "rider_data": {
-        "station_id": {
-            "type": Integer,
-            "params": {"args": [], "kwargs": {"primary_key": True}},
-        },
-        "station_name": {
-            "type": String,
-            "params": {
-                "args": [],
-                "kwargs": {
-                    "nullable": False,
-                },
-            },
-        },
-        "date": {"type": Date, "params": {"args": [], "kwargs": {"primary_key": True}}},
-        "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
-        "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
-    },
-    "station_order": {
+    "train_station_order": {
         "line": {
             "type": String,
             "params": {"args": [], "kwargs": {"primary_key": True}},
         },
         "order": {"type": ARRAY(Integer), "params": {"args": [], "kwargs": {}}},
     },
-    "stations": {
+    "train_stations": {
         "stop_id": {
             "type": Integer,
             "params": {"args": [], "kwargs": {"primary_key": True}},
@@ -72,5 +65,171 @@ schemas = {
             "type": JSON,
             "params": {"args": [], "kwargs": {}},
         },
+    },
+    "train_line_shapes": {
+        "geometry": {
+            "type": JSON,  # might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "lines": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "description": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "type": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "legend": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "shape_len": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "bus_route_shapes": {
+        "geometry": {
+            "type": JSON,  # might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "route": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "weekday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "saturday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "sunday": {
+            "type": Boolean,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "bus_stops": {
+        "system_stop": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "public_name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "city": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "street": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "cross_street": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "available_routes": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "direction": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "position": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "geometry": {
+            "type": JSON,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "streets": {
+        "section_id": {
+            "type": Integer,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "street_name": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "street_type": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "class": {
+            "type": String,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "geometry": {
+            "type": JSON,  # might need string instead
+            "params": {"args": [], "kwargs": {}},
+        },
+        "length": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+    },
+    "efficiency_stats": {
+        "node1": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "node2": {
+            "type": String,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "mean_shortest_path_length": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "weighted_shortest_path": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "global_efficiency": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        # "mean_distance_to_nearest_2": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        # "mean_distance_to_nearest_5": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "barycenter": {"type": ARRAY(String), "params": {"args": [], "kwargs": {}}},
+        "eccentricity": {"type": ARRAY(Numeric), "params": {"args": [], "kwargs": {}}},
+        "avg_clustering": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        # "communicability": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        "effective_graph_resistance": {
+            "type": Numeric,
+            "params": {"args": [], "kwargs": {}},
+        },
+        "pagerank": {"type": JSON, "params": {"args": [], "kwargs": {}}},
+        # "smallworld_sigma": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+        # "smallworld_omega": {"type": Numeric, "params": {"args": [], "kwargs": {}}},
+    },
+    "rider_data": {
+        "station_id": {
+            "type": Integer,
+            "params": {"args": [], "kwargs": {"primary_key": True}},
+        },
+        "station_name": {
+            "type": String,
+            "params": {
+                "args": [],
+                "kwargs": {
+                    "nullable": False,
+                },
+            },
+        },
+        "date": {"type": Date, "params": {"args": [], "kwargs": {"primary_key": True}}},
+        "day_type": {"type": CHAR, "params": {"args": [], "kwargs": {}}},
+        "rides": {"type": Integer, "params": {"args": [], "kwargs": {}}},
     },
 }
