@@ -8,10 +8,8 @@
 import pandas as pd
 
 # consider storing all these classes in on file since they are rather compact presently
-from rt_network.Node import Node
-from rt_network.Connection import Connection
-from rt_network.Line import Line
-from rt_network.Network import Network
+from city_network.network_components import Connection, Node, Line
+from city_network.network import Network
 
 from utils import add_to_db, connect_closest
 import pickle
@@ -247,14 +245,14 @@ if include_data:
         ]
     # streets direct to rail connections, rail to rail might be exhaustive for this approach.
     street_to_rail = [
-        Connection(st1, st2, conn_type="rail").get_connection_tuple(weighted=True)
+        Connection(st1, st2, conn_type="rail").get_weighted_tuple(weighted=True)
         for st1, st2 in tqdm(
             product(conn_lists["street"], conn_lists["rail"]),
             desc="Generating new potential connections from street to rail",
         )
     ]
     rail_to_rail = [
-        Connection(st1, st2, conn_type="rail").get_connection_tuple(weighted=True)
+        Connection(st1, st2, conn_type="rail").get_weighted_tuple(weighted=True)
         for st1, st2 in tqdm(
             product(conn_lists["rail"], conn_lists["rail"]),
             desc="Generating new potential connections from rail to rail",

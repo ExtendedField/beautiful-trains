@@ -36,9 +36,9 @@ class Network:
         from shapely import MultiLineString, STRtree
         import momepy as mp
         from data.resistances import resistances
-        from rt_network.Node import Node
+        from city_network.network_components import Node
         import numpy as np
-        from rt_network.Connection import Connection
+        from city_network.network_components import Connection
         from tqdm import tqdm
         from utils import connect_graph
 
@@ -110,7 +110,7 @@ class Network:
             }
             layer_conns = layer_conns.union(new_conns)
         self.graph.add_edges_from(
-            [conn.get_connection_tuple(weighted=True) for conn in layer_conns]
+            [conn.get_weighted_tuple(weighted=True) for conn in layer_conns]
         )
         connect_graph(self.graph, self.tree)
 

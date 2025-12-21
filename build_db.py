@@ -32,6 +32,7 @@ table_info = city_info["tables"]
 # below block will expand as new apis are added
 if city_info["client_api"] == "socrata":
     from sodapy import Socrata
+
     client = Socrata(city_info["website"], city_info["token"])
 else:
     raise Exception("Unknown client id. Please try another")

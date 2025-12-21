@@ -5,7 +5,7 @@ from time import sleep
 import numpy as np
 import networkx as nx
 from shapely import LineString, MultiLineString
-from rt_network.Connection import Connection
+from city_network.network_components import Connection
 
 
 def build_table(metadata, table_name, schema):
@@ -167,7 +167,7 @@ def weighted_shortest_path(g, boardings, weight="travel_resistance"):
     ).mean()
 
 
-#TODO: split into two functions, one for lines and one for points and refactor in Network.py accordingly.
+#TODO: split into two functions, one for lines and one for points and refactor in network.py accordingly.
 def gen_trace(trace_type, line_width, color, geom_data):
     """
     trace_type: 'line' or 'marker'
@@ -288,7 +288,7 @@ def connect_graph(g, tree):
             dist += increment
         ending = valid_targs[0]
         new_edges.append(
-            Connection(starting, ending, conn_type="street").get_connection_tuple(
+            Connection(starting, ending, conn_type="street").get_weighted_tuple(
                 weighted=True
             )
         )

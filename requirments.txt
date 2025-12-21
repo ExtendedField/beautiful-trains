@@ -1,5 +1,9 @@
 pandas
 numpy
+geopandas
+momepy
+networkx
+shapely
 sodapy
 plotly
 sqlalchemy
@@ -7,3 +11,4 @@ geoalchemy2
 psycopg2
 tqdm
 scipy
+pydantic
