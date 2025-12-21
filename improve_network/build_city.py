@@ -10,11 +10,12 @@ import pandas as pd
 # consider storing all these classes in on file since they are rather compact presently
 from city_network.network_components import Connection, Node, Line
 from city_network.network import Network
+from plotting import utils
 
-from utils import add_to_db, connect_closest
+from utils import connect_closest
+from collect_data.utils import add_to_db, read_city_json
 import pickle
 import argparse
-from utils import read_city_json
 import numpy as np
 from sqlalchemy import create_engine, select, func
 import networkx as nx
@@ -144,7 +145,7 @@ for route in tqdm(valid_routes, desc="Detecting bus routes"):
         order = sorted(
             [
                 (  # tuple order is important because sorted by default uses the first tuple value
-                    line.project(Point(stop.geometry["coordinates"])),
+                    utils.project(Point(stop.geometry["coordinates"])),
                     Node(
                         net_id=stop.system_stop,
                         name=stop.public_name,

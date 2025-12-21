@@ -1,11 +1,10 @@
-import pandas as pd
 import json
+from time import sleep
+
+import pandas as pd
 from sqlalchemy import MetaData
 from tqdm import tqdm
-from time import sleep
-import numpy as np
-import networkx as nx
-from shapely import LineString, MultiLineString
+
 from city_network.network_components import Connection
 
 
@@ -140,121 +139,6 @@ def read_city_json(city, json_dir):
     """
     with open(json_dir) as city_info_json:
         return json.load(city_info_json)[city]
-
-
-def weighted_shortest_path(g, boardings, weight="travel_resistance"):
-    """
-    Calculates the average shortest path between network nodes weighted by daily boardings at the node.
-
-    :param g: NetworkX graph object
-    :param boardings: DataFrame of daily boardings at each station
-    :param weight: the edge attribute by which to weight.
-    :returns: mean-weighted-shortest-path length
-    """
-    # average path length from station * daily boardings (average) / total boardings = weighted trip length measure
-    nodes = list(g)
-    index = sorted([node.network_id for node in nodes])
-    boardings = boardings[boardings.index.isin(index)]
-    total_boardings = float(boardings.avg_rides.sum())
-
-    path_lengths = pd.DataFrame(dict(nx.shortest_path_length(g, weight=weight)))
-    path_lengths.index = [i.network_id for i in path_lengths.index]
-    path_lengths.columns = [i.network_id for i in path_lengths.columns]
-    path_lengths = path_lengths.sort_index().sort_index(axis=1)
-    return (
-        np.matmul(
-            np.diag(boardings.to_numpy().flatten()).astype("float"),
-            path_lengths,
-        ).sum()
-        / total_boardings
-    ).mean()
-
-
-# TODO: split into two functions, one for lines and one for points and refactor in network.py accordingly.
-def gen_trace(trace_type, line_width, color, geom_data):
-    """
-    trace_type: 'line' or 'marker'
-    line_width: float value of the desired line width
-    color: line color
-    geom_data: list[MultiLineString] list of shapely MultiLineString objects
-               or list[Point] shapely Point objects.
-    """
-    from plotly import graph_objects as go
-
-    edge_x = []
-    edge_y = []
-    if trace_type == "lines":
-        for segment in geom_data.geoms:
-            if ~segment.is_empty:
-                for coord in segment.coords:
-                    lon = coord[0]
-                    lat = coord[1]
-                    edge_x.append(lon)
-                    edge_y.append(lat)
-                edge_x.append(None)
-                edge_y.append(None)
-    else:
-        for coord in geom_data:
-            lon = coord.x
-            lat = coord.y
-            edge_x.append(lon)
-            edge_y.append(lat)
-
-    return go.Scattermap(
-        lat=edge_y,
-        lon=edge_x,
-        line=dict(width=line_width, color=color),
-        hoverinfo="none",
-        mode=trace_type,
-    )
-
-
-# TODO: remove parameterization and rename project_mercator
-def project(lam, phi, proj="mercator", deg=True):
-    """
-    Projects latitude (phi) and longitude (lam) to the cartesian system using the specified projection formula.
-    We first convert from degrees to radians if deg is True to ensure the mathe works as expected
-
-    :param phi: latitude
-    :param lam: longitude
-    :param proj: projection formula name
-    :param deg: flag whether the passed coordinates are in degrees.
-    :return: (x, y) according to the passed projection formula
-    """
-    import math
-
-    if deg:
-        deg_to_rad = math.pi / 180
-        lam = lam * deg_to_rad
-        phi = phi * deg_to_rad
-
-    if proj == "mercator":
-        x = lam
-        y = math.log(math.tan((math.pi / 4) + (phi / 2)))
-    else:
-        raise Exception(f"Projection formula invalid.\nPassed formula name: {proj}")
-
-    return x, y
-
-
-def gen_graph_geoms(g, layer, color=None):
-    """
-    Generates shapely geometry objects to be used for plotting from a NetworkX graph object
-
-    :param g: NetworkX graph object
-    :param layer: layer of graph (rail, bus, street, etc.)
-    :param color: target color for filtering layer down to specific line
-    :returns: MultiLineString in correct format for plotting
-    """
-    if color:
-        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(
-            u.colors + v.colors
-        )
-    else:
-        condition = lambda u, v: layer in {u.node_type, v.node_type}
-    return MultiLineString(
-        [LineString((u.location, v.location)) for u, v in g.edges() if condition(u, v)]
-    )
 
 
 def connect_closest(eps, route_connections):

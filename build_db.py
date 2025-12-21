@@ -5,7 +5,7 @@
 # --table accepts a specific table if only one table needs to be created or refreshed
 ###
 
-from utils import add_to_db, read_city_json, build_table
+from collect_data.utils import build_table, add_to_db, read_city_json
 import argparse
 from data.dbmetadata.schemas import schemas
 import pickle
