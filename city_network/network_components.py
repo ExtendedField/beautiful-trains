@@ -1,18 +1,54 @@
-from typing import List, Tuple
+from functools import wraps
+from typing import List, Tuple, Type
 
 from networkx import Graph
 from numpy import cos, sqrt
 
 from city_network.schemas import (
-    TransitModeAndResistance,
     NodeMetaData,
     LineMetaData,
     ConnectionMetaData,
+    ComponentMetaData,
 )
+from city_network.config import TransitModeAndResistance
+
+
+class Line:
+    def __init__(self, line_meta_data: LineMetaData):
+        self.stations = line_meta_data.stations
+        self.connections = line_meta_data.connections
+
+        line_mode_and_resistance = line_meta_data.line_type_and_resistance.value
+        self.line_type = line_mode_and_resistance.mode
+        self.resistance = line_mode_and_resistance.resistance
+
+        self.name = line_meta_data.name_and_color
+
+        line_graph = Graph()
+        line_graph.add_nodes_from(line_meta_data.stations)
+        line_graph.add_edges_from(
+            [
+                connection.get_weighted_tuple()
+                for connection in line_meta_data.connections
+            ]
+        )
+        self._remove_inactive_stations(line_graph)
+        self.line_graph = line_graph
+
+    def _remove_inactive_stations(self, graph: Graph) -> None:
+        active_stations = [connection.station1 for connection in self.connections] + [
+            connection.station2 for connection in self.connections
+        ]
+        graph.remove_nodes_from(
+            [station for station in self.stations if station not in active_stations]
+        )
+
+    def __str__(self):
+        return f"{self.name} line. number of stations:{len(self.stations)}"
 
 
 class Node:
-    def __init__(self, node_meta_data=NodeMetaData):
+    def __init__(self, node_meta_data: NodeMetaData):
         available_transit_modes = [
             mode_and_resistance.value.mode
             for mode_and_resistance in node_meta_data.transit_modes_and_resistances
@@ -86,33 +122,3 @@ def _get_resistance(types_and_resistances: List[TransitModeAndResistance]) -> fl
         ]
     )
     return resistance
-
-
-class Line:
-    def __init__(self, line_meta_data: LineMetaData):
-        self.stations = line_meta_data.stations
-        self.connections = line_meta_data.connections
-        self.line_type = line_meta_data.line_type_and_resistance
-        self.name = line_meta_data.name_and_color
-
-        line_graph = Graph()
-        line_graph.add_nodes_from(line_meta_data.stations)
-        line_graph.add_edges_from(
-            [
-                connection.get_weighted_tuple()
-                for connection in line_meta_data.connections
-            ]
-        )
-        self._remove_inactive_stations(line_graph)
-        self.line_graph = line_graph
-
-    def _remove_inactive_stations(self, graph: Graph) -> None:
-        active_stations = [connection.station1 for connection in self.connections] + [
-            connection.station2 for connection in self.connections
-        ]
-        graph.remove_nodes_from(
-            [station for station in self.stations if station not in active_stations]
-        )
-
-    def __str__(self):
-        return f"{self.name} line. number of stations:{len(self.stations)}"

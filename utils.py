@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+from sqlalchemy import MetaData
 from tqdm import tqdm
 from time import sleep
 import numpy as np
@@ -8,7 +9,8 @@ from shapely import LineString, MultiLineString
 from city_network.network_components import Connection
 
 
-def build_table(metadata, table_name, schema):
+# TODO: make schema with pydantic
+def build_table(metadata: MetaData, table_name: str, schema):
     """
     Creates and returns an SQLAlchemy table object from a simple schema.
 
@@ -38,6 +40,7 @@ def build_table(metadata, table_name, schema):
     )
 
     return table
+
 
 # TODO: split into 3 functions, one for each case handled by this one, and refactor acordingly in build_db
 def add_to_db(
@@ -167,7 +170,7 @@ def weighted_shortest_path(g, boardings, weight="travel_resistance"):
     ).mean()
 
 
-#TODO: split into two functions, one for lines and one for points and refactor in network.py accordingly.
+# TODO: split into two functions, one for lines and one for points and refactor in network.py accordingly.
 def gen_trace(trace_type, line_width, color, geom_data):
     """
     trace_type: 'line' or 'marker'
@@ -205,7 +208,8 @@ def gen_trace(trace_type, line_width, color, geom_data):
         mode=trace_type,
     )
 
-#TODO: remove parameterization and rename project_mercator
+
+# TODO: remove parameterization and rename project_mercator
 def project(lam, phi, proj="mercator", deg=True):
     """
     Projects latitude (phi) and longitude (lam) to the cartesian system using the specified projection formula.
@@ -251,49 +255,6 @@ def gen_graph_geoms(g, layer, color=None):
     return MultiLineString(
         [LineString((u.location, v.location)) for u, v in g.edges() if condition(u, v)]
     )
-
-
-def connect_graph(g, tree):
-    """
-    Takes a disconnected graph and recursively stitches it back together to create a fully connected graph by connecting
-    close points on two disconnected sub-graphs.
-
-    :param g: NetworkX graph object
-    :param tree: STRTree of all graph nodes
-    """
-    if nx.is_connected(g):
-        return
-    else:
-        # connect any still disconnected portions
-        node_list = np.array(list(g.nodes()))
-        main_g = max(nx.connected_components(g), key=len)
-        discon_subgs = [
-            g.subgraph(c) for c in nx.connected_components(g) if len(c) < len(main_g)
-        ]
-        target = discon_subgs[0]
-        new_edges = []
-        invalid_nodes = list(target.nodes())
-        starting = invalid_nodes[0]
-        dist = 0.005
-        increment = 0.005
-        valid_targs = []
-        while len(valid_targs) < 1:
-            valid_targs += [
-                n
-                for n in node_list[
-                    tree.query(starting.location, predicate="dwithin", distance=dist)
-                ]
-                if n not in invalid_nodes
-            ]
-            dist += increment
-        ending = valid_targs[0]
-        new_edges.append(
-            Connection(starting, ending, conn_type="street").get_weighted_tuple(
-                weighted=True
-            )
-        )
-    g.add_edges_from(new_edges)
-    connect_graph(g, tree)
 
 
 def connect_closest(eps, route_connections):

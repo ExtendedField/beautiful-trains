@@ -1,10 +1,10 @@
 from typing import List, Set
-from enum import Enum
 
 from pydantic import BaseModel
-from shapely import Point
+from shapely import MultiLineString, Point
 
-from city_network.network_components import Connection, Node
+from city_network.config import TransitModeAndResistance
+from city_network.network_components import Connection, Node, Line
 
 
 class ModeResistancePair(BaseModel):
@@ -12,20 +12,21 @@ class ModeResistancePair(BaseModel):
     resistance: float
 
 
-class TransitModeAndResistance(Enum):
-    WALK = ModeResistancePair(mode="walk", resistance=1)
-    BUS = ModeResistancePair(mode="bus", resistance=0.5)
-    STREETCAR = ModeResistancePair(mode="streetcar", resistance=0.5)
-    LIGHT_RAIL = ModeResistancePair(mode="light_rail", resistance=0.3)
-    HEAVY_RAIL = ModeResistancePair(mode="heavy_rail", resistance=0.2)
-
-
 class LineColorPair(BaseModel):
     name: str
     color: str = "black"  # TODO: this should be some color datatype
 
 
-class LineMetaData(BaseModel):
+class TransitShapes(BaseModel):
+    line_and_color = LineColorPair
+    shape = MultiLineString
+
+
+class ComponentMetaData(BaseModel):
+    pass
+
+
+class LineMetaData(ComponentMetaData):
     stations: Set[Node]
     connections: Set[Connection]
     name_and_color: LineColorPair
@@ -33,15 +34,22 @@ class LineMetaData(BaseModel):
     weight: float
 
 
-class NodeMetaData(BaseModel):
+class NodeMetaData(ComponentMetaData):
     net_id: str
-    name: str
+    name: str = ""
     location: Point
     available_lines: List[LineColorPair] = []
-    transit_modes_and_resistances: List[TransitModeAndResistance]
+    transit_modes_and_resistances: List[TransitModeAndResistance] = []
 
 
-class ConnectionMetaData(BaseModel):
+class ConnectionMetaData(ComponentMetaData):
     station1: Node
     station2: Node
     transit_modes_and_resistances: List[TransitModeAndResistance]
+
+
+class NetworkMetaData(ComponentMetaData):
+    city: str
+    lines: List[Line]
+    transit_shapes: List[TransitShapes]
+    walking_shapes: MultiLineString
