@@ -1,5 +1,4 @@
-from functools import wraps
-from typing import List, Tuple, Type
+from typing import List, Tuple
 
 from networkx import Graph
 from numpy import cos, sqrt
@@ -8,7 +7,6 @@ from city_network.schemas import (
     NodeMetaData,
     LineMetaData,
     ConnectionMetaData,
-    ComponentMetaData,
 )
 from city_network.config import TransitModeAndResistance
 
