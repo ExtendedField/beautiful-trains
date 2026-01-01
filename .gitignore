@@ -2,6 +2,7 @@
 *.idea/
 *.pkl
 *__pycache__*
+*.vscode
 
 # venvs
 .venv*
