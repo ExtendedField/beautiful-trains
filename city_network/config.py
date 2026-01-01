@@ -1,11 +1,19 @@
-from enum import Enum
-
-from city_network.schemas import ModeResistancePair
+from enum import Enum, auto
 
 
-class TransitModeAndResistance(Enum):
-    WALK = ModeResistancePair(mode="walk", resistance=1)
-    BUS = ModeResistancePair(mode="bus", resistance=0.5)
-    STREETCAR = ModeResistancePair(mode="streetcar", resistance=0.5)
-    LIGHT_RAIL = ModeResistancePair(mode="light_rail", resistance=0.3)
-    HEAVY_RAIL = ModeResistancePair(mode="heavy_rail", resistance=0.2)
+class TransitMode(str, Enum):
+    WALK = auto()
+    BUS = auto()
+    STREETCAR = auto()
+    LIGHT_RAIL = auto()
+    HEAVY_RAIL = auto()
+
+    def resistance(self):
+        resistances = {
+            "WALK": 1,
+            "BUS": 0.5,
+            "STREETCAR": 0.5,
+            "LIGHT_RAIL": 0.3,
+            "HEAVY_RAIL": 0.2,
+        }
+        return resistances[self.name]
