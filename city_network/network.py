@@ -1,23 +1,28 @@
 from tqdm import tqdm
 import networkx as nx
 import numpy as np
-from numpy.typing import NDArray
 
 from typing import List, Set
-from shapely import Point, STRtree
+from shapely import MultiLineString, Point, STRtree
 
-from city_network.network_components import Connection, Node
-from city_network.utils import graph_from_shapes, connect_network_graph
-from city_network.config import TransitModeAndResistance
-from city_network.schemas import ConnectionMetaData, NetworkMetaData, NodeMetaData
+from city_network.network_components import Connection, Line, Node
+from city_network.utils import graph_from_shapes, connect_graph_using_tree
+from city_network.config import TransitMode
+from city_network.schemas import TransitShape
 
 
 class Network:
-    def __init__(self, network_meta_data: NetworkMetaData):
-        self.city = network_meta_data.city
-        self.lines = network_meta_data.lines
-        self.transit_shapes = network_meta_data.transit_shapes
-        self.walking_shapes = network_meta_data.walking_shapes
+    def __init__(
+        self,
+        city: str,
+        lines: List[Line],
+        transit_shapes: List[TransitShape],
+        walking_shapes: MultiLineString,
+    ):
+        self.city = city
+        self.lines = lines
+        self.transit_shapes = transit_shapes
+        self.walking_shapes = walking_shapes
         unpacked_connections = [line.connections for line in self.lines]
         self.transit_connections = {
             connections
@@ -35,10 +40,10 @@ class Network:
 
         self.walking_graph = self._build_walking_graph()
         self.transit_graph = self._build_transit_graph()
-        self.graph = self._combine_graph_layers()
 
         self.walking_nodes = self._get_walking_nodes()
         self.nodes = self.walking_nodes.union(self.transit_nodes)
+        self.graph = self._combine_graph_layers()
 
         self.walking_connections = self._get_transit_nodes()
         self.connections = self.transit_connections.union(self.walking_connections)
@@ -53,9 +58,7 @@ class Network:
         for edge_key in dists.keys():
             # mm -> km * resistance factor for walking
             dists[edge_key] = (
-                float(dists[edge_key])
-                * 1000
-                * TransitModeAndResistance("walk").value.resistance
+                float(dists[edge_key]) * 1000 * TransitMode.WALK.resistance()
             )
         nx.set_edge_attributes(walking_graph, values=dists, name="travel_resistance")
         return walking_graph
@@ -68,49 +71,62 @@ class Network:
         node_list = np.array(list(self.nodes))
         self.tree = STRtree([node.location for node in node_list])
         layer_connections: Set[Connection] = set()
-        for node1 in tqdm(self.walking_graph, desc="Stitching together graph layers"):
+        for node1 in tqdm(self.transit_nodes, desc="Stitching together graph layers"):
             neighborhood = node_list.take(
                 self.tree.query(node1.location, predicate="dwithin", distance=threshold)
             ).tolist()
-            neighborhood = [node for node in neighborhood if node.node_type != "street"]
+            walking_only_nodes_in_neighborhood = [
+                node
+                for node in neighborhood
+                if node.available_transit_modes == [TransitMode.WALK]
+            ]
             new_connections = {
                 Connection(
-                    ConnectionMetaData(
-                        station1=node1,
-                        station2=node2,
-                        transit_modes_and_resistances=[
-                            TransitModeAndResistance("walk")
-                        ],
-                    )
+                    station1=node1,
+                    station2=node2,
+                    transit_modes=[TransitMode.WALK],
                 )
-                for node2 in neighborhood
+                for node2 in walking_only_nodes_in_neighborhood
             }
             layer_connections = layer_connections.union(new_connections)
-        connected_graph = nx.from_edgelist(
+        new_connections = nx.MultiGraph(
             [connection.get_weighted_tuple() for connection in layer_connections]
         )
-        connect_network_graph(self)
-        return connected_graph
+        combined_graphs = nx.Graph(
+            nx.compose_all(
+                [
+                    nx.MultiGraph(self.walking_graph),
+                    nx.MultiGraph(self.transit_graph),
+                    new_connections,
+                ]
+            )
+        )
+        connected_graph = connect_graph_using_tree(combined_graphs, self.tree)
+        if connected_graph:
+            return connected_graph
+        else:
+            exception_msg = (
+                f"Graph could not be fully connected\n"
+                f"walking nodes: {self.walking_nodes}\n"
+                f"transit_nodes: {self.transit_nodes}"
+            )
+            raise Exception(exception_msg)
 
     def _get_walking_nodes(self) -> Set[Node]:
         return {
             Node(
-                NodeMetaData(
-                    net_id="",  # TODO: generate unique node_id in a better way.
-                    location=Point(data["latitude"], data["longitude"]),
-                )
+                net_id="",  # TODO: generate unique node_id in a better way.
+                location=Point(lat, lon),
             )
-            for node, data in self.graph.nodes
+            for lat, lon in self.walking_graph.nodes
         }
 
     def _get_transit_nodes(self) -> Set[Connection]:
         return {
             Connection(
-                ConnectionMetaData(
-                    station1=node1,
-                    station2=node2,
-                    transit_modes_and_resistances=[TransitModeAndResistance["walk"]],
-                )
+                station1=node1,
+                station2=node2,
+                transit_modes=[TransitMode.WALK],
             )
             for node1, node2 in self.graph.edges
         }
