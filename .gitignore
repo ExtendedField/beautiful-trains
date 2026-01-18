@@ -8,6 +8,9 @@
 .venv*
 venv*
 
+# envs
+*.env
+
 # local data
 cache/*
 

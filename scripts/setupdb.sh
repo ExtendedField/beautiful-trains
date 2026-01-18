@@ -6,13 +6,22 @@
 city="$1"
 dbname="${1}_transitdb"
 
-# checks to see if a postgresql db called transitdb exists and creates it if it doesnt
-# also creates a user to own the database and changes that user to the owner.
+# if .env exists, read from it, if not, create it
+if [[ -e .env ]]
+then
+    source .env
+else
+    PASSWORD='conductor'
+    echo $PASSWORD > .env
+fi
+
+# checks to see if a postgresql db called transitdb exists and creates it. If it 
+# does, also creates a user to own the database and changes that user to the owner.
 if [[ -z $(psql -lqt | cut -d \| -f 1 | grep -w "$dbname") ]]
 then
 createdb "$dbname"
 psql -d "$dbname" <<SetupCommands
-CREATE USER transitdb_user WITH PASSWORD 'conductor';
+CREATE USER transitdb_user WITH PASSWORD '$PASSWORD';
 ALTER DATABASE "$dbname" OWNER TO transitdb_user;
 SetupCommands
 fi
