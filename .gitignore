@@ -12,7 +12,7 @@ venv*
 *.env
 
 # local data
-cache/*
-*data
+*cache*
+*./data*
 
 # temporary for testing
