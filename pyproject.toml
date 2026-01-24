@@ -10,6 +10,7 @@ dependencies = [
     "momepy>=0.11.0",
     "networkx>=3.6.1",
     "numpy>=2.4.1",
+    "osmnx>=2.0.7",
     "pandas>=2.3.3",
     "plotly>=6.5.2",
     "psycopg2>=2.9.11",

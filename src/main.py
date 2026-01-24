@@ -1,3 +1,6 @@
+from collect_data.collect_data import get_network, save_network
+
+
 def improve_city(city: str):
     fetch_data(city)
     improve_public_transit(city)
@@ -5,7 +8,8 @@ def improve_city(city: str):
 
 
 def fetch_data(city: str):
-    pass
+    city_network = get_network(city)
+    save_network(city_network)
 
 
 def improve_public_transit(city: str):

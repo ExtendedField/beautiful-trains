@@ -13,5 +13,6 @@ venv*
 
 # local data
 cache/*
+*data
 
 # temporary for testing

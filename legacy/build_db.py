@@ -63,7 +63,7 @@ if refresh:
 transit_metadata.create_all(engine)
 empty_tables = ["efficiency_stats"]  # list of tables to be filled later
 for table in tables:
-    # TODO: make two loops, one for empty tables, and one for the reast to remove this 'if' stmt
+    # TODO: make two loops, one for empty tables, and one for the rest to remove this 'if' stmt
     if table.name in empty_tables:
         add_to_db(city, table, engine, client)
     else:
