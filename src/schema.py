@@ -15,4 +15,4 @@ class OpenStreetMapCityName(str, Enum):
 
 class City(BaseModel):
     name: str
-    open_street_map_city_name: OpenStreetMapCityName
+    open_street_map_city_name: str

@@ -1,19 +1,13 @@
-from collect_data.collect_data import get_public_transit_network, save_network
-from schema import City, NetworkType
-from config.city_config import city_map
+from collect_data.collect_data import get_city_networks
+from schema import City
+from config.city_config import city_osm_query_values
 
 
 def improve_city(city: City):
-    fetch_data(city)
+    public_transit_network, walking_network = get_city_networks(city)
+    print(public_transit_network, walking_network)
     # improve_public_transit(city)
     # plot_improved_transit(city)
-
-
-def fetch_data(city: City):
-    print("Collecting Data...")
-    city_network = get_public_transit_network(city)
-    print("Data Collected.")
-    save_network(city, city_network)
 
 
 def improve_public_transit(city: City):
@@ -35,9 +29,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     city = args.city_name
     try:
-        improve_city(city_map[city])
-    except Exception as e:
-        raise Exception(
-            f"invalid city name: {city} passed. Valid city names include:"
-            f"{city_map.keys()}"
+        osm_city_query = city_osm_query_values[city].value
+    except:
+        print("City shortname not found in city_config.py. Trying passed name directly")
+        # TODO: would be great to validate this against Nominatim
+        osm_city_query = city
+    improve_city(
+        City(
+            name=city,
+            open_street_map_city_name=osm_city_query,
         )
+    )

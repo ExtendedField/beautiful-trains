@@ -1,10 +1,6 @@
-from schema import OpenStreetMapCityName, City
+from schema import OpenStreetMapCityName
 
-city_map = {
-    "chicago": City(
-        name="chicago", open_street_map_city_name=OpenStreetMapCityName.CHICAGO
-    ),
-    "roseburg": City(
-        name="roseburg", open_street_map_city_name=OpenStreetMapCityName.ROSEBURG
-    )
+city_osm_query_values = {
+    "chicago": OpenStreetMapCityName.CHICAGO,
+    "roseburg": OpenStreetMapCityName.ROSEBURG,
 }
