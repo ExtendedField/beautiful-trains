@@ -1,6 +1,6 @@
 from collect_data import get_city_networks
 from schema import City
-from config.city_config import city_osm_query_values
+from city_config import city_osm_query_values
 
 
 def improve_city(city: City):
