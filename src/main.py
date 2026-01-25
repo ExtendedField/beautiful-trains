@@ -1,4 +1,4 @@
-from collect_data.collect_data import get_city_networks
+from collect_data import get_city_networks
 from schema import City
 from config.city_config import city_osm_query_values
 
