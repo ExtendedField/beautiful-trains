@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PASSWORD: str = 'conductor'
+    POSTGRES_PASSWORD: str = "default"
     CACHE_LOCATION: str = f"./network_cache/"
 
 

@@ -15,4 +15,7 @@ venv*
 *cache*
 *./data*
 
+# legacy
+*./legacy*
+
 # temporary for testing

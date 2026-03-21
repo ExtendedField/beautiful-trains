@@ -1,3 +1,4 @@
+from improve_network import find_n_best_new_connections
 from collect_data import get_city_networks
 from schema import City
 from city_config import city_osm_query_values
@@ -5,13 +6,9 @@ from city_config import city_osm_query_values
 
 def improve_city(city: City):
     public_transit_network, walking_network = get_city_networks(city)
-    print(public_transit_network, walking_network)
-    # improve_public_transit(city)
+    find_n_best_new_connections(public_transit_network)
     # plot_improved_transit(city)
 
-
-def improve_public_transit(city: City):
-    pass
 
 
 def plot_improved_transit(city: City):
