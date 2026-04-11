@@ -1,3 +1,4 @@
+from uuid import UUID
 from typing import Any
 from networkx import Graph
 from numpy import cos, sqrt
@@ -10,7 +11,7 @@ from city_network.schemas import LineColorPair
 class Node:
     def __init__(
         self,
-        net_id: str,
+        net_id: UUID,
         location: Point,
         transit_modes: set[TransitMode] = set(),
         available_lines: list[LineColorPair] = [],

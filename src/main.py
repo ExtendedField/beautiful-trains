@@ -7,7 +7,7 @@ from city_config import city_osm_query_values
 def improve_city(city: City):
     public_transit_network, walking_network = get_city_networks(city)
     find_n_best_new_connections(public_transit_network)
-    # plot_improved_transit(city)
+
 
 
 
