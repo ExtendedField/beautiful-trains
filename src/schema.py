@@ -2,7 +2,6 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-
 class NetworkType(str, Enum):
     ALL_PUBLIC = "all_public"
     WALK = "walk"
