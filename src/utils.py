@@ -1,43 +1,56 @@
-from get_city_config import get_city_config
-from networkx import MultiDiGraph
-from schema import City, CityConfig
-
-import pickle
-import json
+from city_network.config import TransitMode
+from shapely import Point, STRtree
+import networkx as nx
+import numpy as np
 
 
-# TODO: make this a pydantic schema not a dict
-def initialize_client(city_config: CityConfig):
-    pass
+def connect_spacial_graph(g: nx.MultiDiGraph) -> None:
+    tree = STRtree([Point(node.longitude, node.latitude) for node in g])
+    connect_graph_using_tree(g, tree)
 
 
-def connect_closest(eps, route_connections):
-    """
-    Connects closest two endpoints in a set which do not belong to the same continuous line segment.
-
-    :param eps: set of endpoints
-    :param route_connections: set of connections for the current route (bus line, rail line, etc.)
-    """
-    if len({val["id"] for val in eps.values()}) < 2:
+def connect_graph_using_tree(
+    graph: nx.MultiDiGraph,
+    tree: STRtree,
+    min_dist: float = 0.005,
+    max_dist: float = 1,
+    increment: float = 0.005,
+) -> None:
+    if nx.is_connected(graph):
         return
     else:
-        ep_list = list(eps.keys())
-        ids = {node["id"] for node in eps.values()}
-        dists = dict()
-        for identifier in ids:
-            curr_seg = {ep for ep in ep_list if eps[ep]["id"] == identifier}
-            other_segs = {ep for ep in ep_list if eps[ep]["id"] != identifier}
-            for curr_ep in curr_seg:
-                for other_ep in other_segs:
-                    dists[curr_ep.location.distance(other_ep.location)] = {
-                        curr_ep,
-                        other_ep,
-                    }
-        closest = tuple(dists[min(dists.keys())])
-        route_connections.add(Connection(*closest, conn_type="bus"))
-        # give new id to endpoints of newly created line segment
-        invalid_ids = {eps[node]["id"] for node in closest}
-        for node in eps.keys():
-            if eps[node]["id"] in invalid_ids:
-                eps[node]["id"] = max(ids) + 1
-        connect_closest(eps, route_connections)
+        node_list = np.array(list(graph.nodes()))
+        largest_subgraph = max(nx.strongly_connected_components(graph), key=len)
+        disconnected_subgraphs = [
+            graph.subgraph(subgraph)
+            for subgraph in nx.strongly_connected_components(graph)
+            if len(subgraph) < len(largest_subgraph)
+        ]
+        target = disconnected_subgraphs[0]
+        nodes_in_largest_subgraph = list(target.nodes())
+        starting = nodes_in_largest_subgraph[0]
+        valid_targs = []
+        while (min_dist < max_dist) & (len(valid_targs) < 1):
+            valid_targs += [
+                node
+                for node in node_list[
+                    tree.query(
+                        starting.location, predicate="dwithin", distance=min_dist
+                    )
+                ]
+                if node not in nodes_in_largest_subgraph
+            ]
+            min_dist += increment
+        ending = valid_targs[0]
+        distance = _euclidean_distance(starting, ending)
+        graph.add_edge(
+            starting, ending, edge_weight=TransitMode.WALK.resistance() * distance
+        )
+        connect_graph_using_tree(graph, tree)
+
+
+def _euclidean_distance(node1, node2):
+    return (
+        (node1.longitude - node2.longitude) ** 2
+        + (node1.latitude - node2.latitude) ** 2
+    ) ** 0.5

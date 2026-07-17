@@ -6,7 +6,7 @@ from networkx import MultiDiGraph
 from schema import City
 
 from schema import CityConfig
-from settings import settings
+from config.settings import settings
 
 
 def get_city_config(city: str) -> CityConfig:

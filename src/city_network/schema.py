@@ -1,7 +1,7 @@
 from math import sqrt, cos
 
 from city_network.config import TransitMode
-from constants import KM_PER_DEG_LATITUDE_EARTH
+from config.constants import KM_PER_DEG_LATITUDE_EARTH
 
 from pydantic import BaseModel, ConfigDict
 from networkx import Graph

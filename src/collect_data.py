@@ -1,3 +1,4 @@
+from utils import connect_spacial_graph
 from pathlib import Path
 
 from networkx import MultiDiGraph
@@ -6,8 +7,8 @@ import osmnx as ox
 
 
 from schema import City
-from library import NetworkType
-from settings import settings
+from config.library import NetworkType
+from config.settings import settings
 
 
 def get_city_networks(city: City) -> tuple[MultiDiGraph, MultiDiGraph]:
@@ -37,6 +38,7 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
         retain_all=True,
     )
     print("Downloaded.")
+    connect_spacial_graph(city_network)
     _save_network(city_network, path)
     return city_network
 
