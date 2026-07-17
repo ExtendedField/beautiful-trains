@@ -3,7 +3,7 @@
 # the impact of new connections on network summary statistics in order to recommend most impactful new connections.
 ###
 
-#TODO: this file needs to be simplified by removing redundancy and repackaging certain parts into cleanly named functions
+# TODO: this file needs to be simplified by removing redundancy and repackaging certain parts into cleanly named functions
 
 import pandas as pd
 

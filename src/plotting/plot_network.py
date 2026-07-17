@@ -78,9 +78,7 @@ def plot_map(
                     ]
                 )
             line_traces.append(gen_trace("lines", 0.5, "grey", street_geoms))
-            street_corners = [
-                node.location for node in self.nodes_by_type["street"]
-            ]
+            street_corners = [node.location for node in self.nodes_by_type["street"]]
             node_traces.append(gen_trace("markers", 0.5, "grey", street_corners))
         if bus:
             bus_route_shapes = pd.DataFrame(
@@ -127,9 +125,7 @@ def plot_map(
                     for node in self.nodes_by_type["rail"]
                     if line_color in node.colors
                 ]
-                node_traces.append(
-                    gen_trace("markers", 2, line_color, line_stations)
-                )
+                node_traces.append(gen_trace("markers", 2, line_color, line_stations))
         if new_conn:
             efficiency_stats = transit_metadata.tables["efficiency_stats"]
             if asc:
@@ -187,6 +183,7 @@ def plot_map(
     for trace in line_traces + node_traces:
         fig.add_trace(trace)
     fig.show()
+
 
 def plot_subgraphs(self, center=(0, 0)):
     """

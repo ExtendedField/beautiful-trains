@@ -9,8 +9,6 @@ from tqdm import tqdm
 from city_network.network_components import Connection
 
 
-
-
 # TODO: make schema with pydantic
 def build_table(metadata: MetaData, table_name: str, schema) -> Table:
     """
@@ -130,9 +128,6 @@ def add_to_db(
             )
             conn.execute(query)
         conn.commit()
-
-
-
 
 
 import networkx as nx

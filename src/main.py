@@ -1,3 +1,4 @@
+from disk_io import store_improved_transit_network
 from improve_network import find_n_best_new_connections
 from collect_data import get_city_networks
 from schema import City
@@ -6,13 +7,8 @@ from city_config import city_osm_query_values
 
 def improve_city(city: City):
     public_transit_network, walking_network = get_city_networks(city)
-    find_n_best_new_connections(public_transit_network)
-
-
-
-
-def plot_improved_transit(city: City):
-    pass
+    improved_transit_network = find_n_best_new_connections(public_transit_network, n=1)
+    store_improved_transit_network(city, improved_transit_network)
 
 
 if __name__ == "__main__":

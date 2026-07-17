@@ -1,6 +1,8 @@
+from networkx import MultiDiGraph
 from tqdm import tqdm
 import networkx as nx
 import numpy as np
+from uuid import uuid4
 
 from typing import List, Set
 from shapely import MultiLineString, Point, STRtree
@@ -8,10 +10,19 @@ from shapely import MultiLineString, Point, STRtree
 from city_network.network_components import Connection, Line, Node
 from city_network.utils import graph_from_shapes, connect_graph_using_tree
 from city_network.config import TransitMode
-from city_network.schemas import TransitShape
+from city_network.schema import TransitShape
 
 
 class Network:
+    def __init__(
+        self, public_transit_network: MultiDiGraph, walking_network: MultiDiGraph
+    ):
+        # TODO: think abut either fleshing this out to make osmnx compatible
+        #       or thing about building a network as an intermediate step if
+        #       that makes more sense.
+        self.walking_graph = walking_network
+        self.transit_graph = public_transit_network
+
     def __init__(
         self,
         city: str,
@@ -54,18 +65,20 @@ class Network:
     def _build_walking_graph(self) -> nx.Graph:
         relabel_mapping = dict()
         walking_graph = graph_from_shapes(self.walking_shapes, relabel_mapping)
-        dists = nx.get_edge_attributes(walking_graph, name="mm_len")
+        dists = nx.get_edge_attributes(walking_graph, name="mm_len")  # pyrefly: ignore
         for edge_key in dists.keys():
             # mm -> km * resistance factor for walking
             dists[edge_key] = (
                 float(dists[edge_key]) * 1000 * TransitMode.WALK.resistance()
             )
-        nx.set_edge_attributes(walking_graph, values=dists, name="travel_resistance")
+        nx.set_edge_attributes(  # pyrefly: ignore
+            walking_graph, values=dists, name="travel_resistance"
+        )
         return walking_graph
 
     def _build_transit_graph(self) -> nx.Graph:
         line_graphs = {line.line_graph for line in self.lines}
-        return nx.compose_all(line_graphs)
+        return nx.compose_all(line_graphs)  # pyrefly: ignore
 
     def _combine_graph_layers(self, threshold: float = 0.0008) -> nx.Graph:
         node_list = np.array(list(self.nodes))
@@ -93,7 +106,7 @@ class Network:
             [connection.get_weighted_tuple() for connection in layer_connections]
         )
         combined_graphs = nx.Graph(
-            nx.compose_all(
+            nx.compose_all(  # pyrefly: ignore
                 [
                     nx.MultiGraph(self.walking_graph),
                     nx.MultiGraph(self.transit_graph),
@@ -115,7 +128,7 @@ class Network:
     def _get_walking_nodes(self) -> Set[Node]:
         return {
             Node(
-                net_id="",  # TODO: generate unique node_id in a better way.
+                net_id=uuid4(),
                 location=Point(lat, lon),
             )
             for lat, lon in self.walking_graph.nodes

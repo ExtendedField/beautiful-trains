@@ -1,18 +1,14 @@
-from collect_data.schema import CityConfig
+from get_city_config import get_city_config
+from networkx import MultiDiGraph
+from schema import City, CityConfig
+
+import pickle
 import json
 
 
 # TODO: make this a pydantic schema not a dict
-def initialize_client(city_config: dict):
+def initialize_client(city_config: CityConfig):
     pass
-
-
-def get_city_config(city: str) -> CityConfig:
-    with open("./config/city_config.json") as city_config_json:
-        city_dict = json.load(city_config_json)[city]
-        return CityConfig(
-            name=city_dict.get("name", ""),
-        )
 
 
 def connect_closest(eps, route_connections):

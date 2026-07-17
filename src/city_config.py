@@ -1,4 +1,4 @@
-from schema import OpenStreetMapCityName
+from library import OpenStreetMapCityName
 
 city_osm_query_values = {
     "chicago": OpenStreetMapCityName.CHICAGO,

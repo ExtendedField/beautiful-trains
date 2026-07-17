@@ -1,8 +1,12 @@
-from schema import City, NetworkType
+from pathlib import Path
+
 from networkx import MultiDiGraph
 import os
 import osmnx as ox
 
+
+from schema import City
+from library import NetworkType
 from settings import settings
 
 
@@ -21,7 +25,7 @@ def _get_walking_network(city: City) -> MultiDiGraph:
 
 
 def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
-    path = f"{settings.CACHE_LOCATION}{city.name}_{network_type.value}"
+    path = settings.CACHE_LOCATION / city.name / network_type.value
     if os.path.isfile(path):
         print(f"Data found at: {path}")
         return ox.io.load_graphml(path)
@@ -37,7 +41,7 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
     return city_network
 
 
-def _save_network(city_network: MultiDiGraph, path: str) -> None:
+def _save_network(city_network: MultiDiGraph, path: Path) -> None:
     print("Saving Data...")
     ox.io.save_graphml(G=city_network, filepath=path)
     print(f"Data Saved at {path}.")
