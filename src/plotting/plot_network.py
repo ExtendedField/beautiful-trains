@@ -105,9 +105,9 @@ def plot_map(
                     line_color = "darkkhaki"
                 else:
                     line_name = line.lower().split(" ")[0]
-                    line_color = [
-                        line for line in self.lines if line_name in line.name
-                    ][0].color
+                    line_color = [line for line in self.lines if line_name in line.name][
+                        0
+                    ].color
                 if graph_view:
                     rail_geoms = gen_graph_geoms(self.graph, "rail", line_color)
                 else:

@@ -94,6 +94,4 @@ class Line(BaseModel):
         return line_graph
 
     def __str__(self):
-        return (
-            f"{self.name_and_color.name} line. number of stations:{len(self.stations)}"
-        )
+        return f"{self.name_and_color.name} line. number of stations:{len(self.stations)}"

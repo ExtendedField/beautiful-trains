@@ -18,6 +18,7 @@ def get_city_config(city: str) -> CityConfig:
 
 
 def store_improved_transit_network(city: City, network: MultiDiGraph) -> None:
-    path = Path("..") / settings.CACHE_LOCATION / f"improved_{city.name}.pkl"
+    path = Path(settings.CACHE_LOCATION) / f"improved_{city.name}.pkl"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         pickle.dump(network, f)

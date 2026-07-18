@@ -14,9 +14,7 @@ from city_network.schema import TransitShape
 
 
 class Network:
-    def __init__(
-        self, public_transit_network: MultiDiGraph, walking_network: MultiDiGraph
-    ):
+    def __init__(self, public_transit_network: MultiDiGraph, walking_network: MultiDiGraph):
         # TODO: think abut either fleshing this out to make osmnx compatible
         #       or thing about building a network as an intermediate step if
         #       that makes more sense.
@@ -68,9 +66,7 @@ class Network:
         dists = nx.get_edge_attributes(walking_graph, name="mm_len")  # pyrefly: ignore
         for edge_key in dists.keys():
             # mm -> km * resistance factor for walking
-            dists[edge_key] = (
-                float(dists[edge_key]) * 1000 * TransitMode.WALK.resistance()
-            )
+            dists[edge_key] = float(dists[edge_key]) * 1000 * TransitMode.WALK.resistance()
         nx.set_edge_attributes(  # pyrefly: ignore
             walking_graph, values=dists, name="travel_resistance"
         )

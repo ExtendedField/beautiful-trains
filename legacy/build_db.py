@@ -47,9 +47,7 @@ subprocess.run(["sh", "./setupdb.sh", city])
 
 transit_metadata = MetaData()
 passwd = "conductor"  # encrypt somewhere buddy...
-engine = create_engine(
-    f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
-)
+engine = create_engine(f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb")
 
 tables = [
     build_table(transit_metadata, table_name, schema)

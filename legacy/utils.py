@@ -122,9 +122,7 @@ def add_to_db(
             query = (
                 insert(table)
                 .values(renamed_row)
-                .on_conflict_do_update(
-                    index_elements=table.primary_key, set_=renamed_row
-                )
+                .on_conflict_do_update(index_elements=table.primary_key, set_=renamed_row)
             )
             conn.execute(query)
         conn.commit()
@@ -161,6 +159,7 @@ def weighted_shortest_path(g, boardings, weight="travel_resistance"):
         ).sum()
         / total_boardings
     ).mean()
+
 
 def connect_closest(eps, route_connections):
     """

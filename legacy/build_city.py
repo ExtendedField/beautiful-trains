@@ -41,9 +41,7 @@ include_data = not args.nodata
 city_info = read_city_json(city, "./data/city_info.json")
 
 passwd = "conductor"  # encrypt somewhere buddy...
-engine = create_engine(
-    f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb"
-)
+engine = create_engine(f"postgresql://transitdb_user:{passwd}@localhost/{city}_transitdb")
 
 # unpickle metadata object...
 filedir = f"data/dbmetadata/{city}db_metadata.pkl"
@@ -171,9 +169,7 @@ for route in tqdm(valid_routes, desc="Detecting bus routes"):
             route_stops = route_stops.union(set(order))
             for i, item in enumerate(order[:-1]):
                 route_connections.add(
-                    Connection(
-                        station1=item[1], station2=order[i + 1][1], conn_type="bus"
-                    )
+                    Connection(station1=item[1], station2=order[i + 1][1], conn_type="bus")
                 )
     connect_closest(end_points, route_connections)
     line_objects.add(
@@ -280,17 +276,15 @@ if include_data:
     ):
         node1, node2, meta_data = connection
         improved_g = transport_network.graph.copy()
-        improved_g.add_edge(
-            node1, node2, travel_resistance=meta_data["travel_resistance"]
-        )
+        improved_g.add_edge(node1, node2, travel_resistance=meta_data["travel_resistance"])
 
         weight = "travel_resistance"
         # this block feels like there should be a better way but this is the cleanest so far.
         efficiency_stats.loc[connection, "mean_shortest_path_length"] = (
             nx.average_shortest_path_length(improved_g, weight=weight)
         )
-        efficiency_stats.loc[connection, "weighted_shortest_path"] = (
-            weighted_shortest_path(improved_g, daily_rail_boardings, weight=weight)
+        efficiency_stats.loc[connection, "weighted_shortest_path"] = weighted_shortest_path(
+            improved_g, daily_rail_boardings, weight=weight
         )
         efficiency_stats.loc[connection, "global_efficiency"] = nx.global_efficiency(
             improved_g

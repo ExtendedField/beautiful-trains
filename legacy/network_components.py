@@ -37,9 +37,7 @@ class Node:
 
 
 class Connection:
-    def __init__(
-        self, station1: Node, station2: Node, transit_modes: list[TransitMode]
-    ):
+    def __init__(self, station1: Node, station2: Node, transit_modes: list[TransitMode]):
         self.station1 = station1
         self.station2 = station2
         self.conn_types = transit_modes
@@ -53,9 +51,7 @@ class Connection:
         y_dist = (lat1 - lat2) * cos(long2)
         # Euclidean distance.
         self.travel_resistance = float(
-            deglen
-            * sqrt(x_dist**2 + y_dist**2)
-            * _get_resistance(self.conn_types)  # kms
+            deglen * sqrt(x_dist**2 + y_dist**2) * _get_resistance(self.conn_types)  # kms
         )
 
     def __str__(self) -> str:
@@ -73,9 +69,7 @@ class Connection:
             {
                 "travel_resistance": self.travel_resistance,
                 "available_transit_modes": available_transit_modes,
-                "lines": set(
-                    self.station1.available_lines + self.station2.available_lines
-                ),
+                "lines": set(self.station1.available_lines + self.station2.available_lines),
             },
         )
 

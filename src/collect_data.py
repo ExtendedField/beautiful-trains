@@ -29,7 +29,9 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
     path = settings.CACHE_LOCATION / city.name / network_type.value
     if os.path.isfile(path):
         print(f"Data found at: {path}")
-        return ox.io.load_graphml(path)
+        city_network = ox.io.load_graphml(path)
+        connect_spacial_graph(city_network)
+        return city_network
     print(f"No data found at: {path}. Downloading...")
     city_network = ox.graph.graph_from_place(
         city.open_street_map_city_name,
@@ -38,7 +40,7 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
         retain_all=True,
     )
     print("Downloaded.")
-    connect_spacial_graph(city_network)
+    connect_spacial_graph(city_network)  # TODO: verify this edits in place successfully
     _save_network(city_network, path)
     return city_network
 
