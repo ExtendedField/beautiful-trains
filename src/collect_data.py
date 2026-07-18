@@ -40,8 +40,8 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
         retain_all=True,
     )
     print("Downloaded.")
-    connect_spacial_graph(city_network)  # TODO: verify this edits in place successfully
     _save_network(city_network, path)
+    connect_spacial_graph(city_network)
     return city_network
 
 

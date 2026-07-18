@@ -1,25 +1,30 @@
+from tqdm import tqdm
 from city_network.network_components import Node
 from city_network.config import TransitMode
 from shapely import Point, STRtree
 import networkx as nx
 import numpy as np
 
-# TODO: very slow
-
 
 def connect_spacial_graph(graph: nx.MultiDiGraph) -> None:
     tree = STRtree([Point(data["x"], data["y"]) for _, data in graph.nodes(data=True)])
     _trim_small_subgraphs(graph)
-    connect_graph_using_tree(graph, tree)
+    progress_bar = tqdm(
+        total=len(list(nx.strongly_connected_components(graph))),
+        desc="Connecting disconnected subgraphs",
+    )
+    connect_graph_using_tree(graph, tree, progress_bar)
 
 
 def connect_graph_using_tree(
     graph: nx.MultiDiGraph,
     tree: STRtree,
+    progress_bar: tqdm,
     min_dist: float = 0.005,
     max_dist: float = 1,
     increment: float = 0.005,
 ) -> None:
+    progress_bar.update(1)
     if nx.is_strongly_connected(graph):
         return
     else:
@@ -30,9 +35,6 @@ def connect_graph_using_tree(
             for subgraph in nx.strongly_connected_components(graph)
             if len(subgraph) < largest_subgraph_length
         ]
-        print(
-            f"Found {len(disconnected_subgraphs)} meaningful subgraphs which are not strongly connected."
-        )
         nodes_in_disconnected_subgraph = _node_list_from_graph(disconnected_subgraphs[0])
         starting_node = nodes_in_disconnected_subgraph[0]
         valid_targs = []
@@ -51,7 +53,7 @@ def connect_graph_using_tree(
             min_dist += increment
         ending_node = valid_targs[0]
         _connect_subgraphs(graph, starting_node, ending_node)
-        connect_graph_using_tree(graph, tree)
+        connect_graph_using_tree(graph, tree, progress_bar)
 
 
 def _trim_small_subgraphs(graph: nx.MultiDiGraph) -> None:

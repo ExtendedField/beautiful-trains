@@ -5,7 +5,7 @@ from copy import deepcopy
 
 
 def find_n_best_new_connections(transit_network: MultiDiGraph, n: int = 1) -> MultiDiGraph:
-    if (n < 1) | (nx.is_connected(transit_network.to_undirected())):
+    if n < 1:
         print("All connections found.")
         return transit_network
     optimized_transit_network = deepcopy(transit_network)
