@@ -1,3 +1,4 @@
+from utils import add_two_way_edge
 from networkx import MultiDiGraph
 import networkx as nx
 from tqdm import tqdm
@@ -5,6 +6,7 @@ from copy import deepcopy
 
 
 def find_n_best_new_connections(transit_network: MultiDiGraph, n: int = 1) -> MultiDiGraph:
+    # TODO: progress bar here as well
     if n < 1:
         print("All connections found.")
         return transit_network
@@ -19,18 +21,18 @@ def find_n_best_new_connections(transit_network: MultiDiGraph, n: int = 1) -> Mu
 
 def _find_best_new_connection(transit_network: MultiDiGraph) -> MultiDiGraph:
     potential_new_connections = nx.Graph(
-        nx.complement(transit_network)
-    ).edges()  # TODO: why does this take forever?
+        nx.complement(transit_network)  # TODO: why does this take forever?
+    ).edges()
     current_best_mean_shortest_path_length = nx.average_shortest_path_length(
         transit_network
     )
-    optimized_graph = transit_network
+    # TODO: this whole thing is slow because we are using a multidigraph.
+    # The way to make this faster is to do the optimizations with a flat undirected graph
+    optimized_graph = deepcopy(transit_network)
     for new_connection in tqdm(
         potential_new_connections, desc="Testing possible connections"
     ):
-        candidate_graph = transit_network.add_edge(  # pyrefly: ignore TODO: I think this works but should make typechecker happy
-            new_connection
-        )
+        candidate_graph = add_two_way_edge(transit_network, *new_connection)
         candidate_mean_shortest_path_length = nx.average_shortest_path_length(
             candidate_graph
         )

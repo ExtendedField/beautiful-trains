@@ -1,3 +1,4 @@
+from copy import deepcopy
 from tqdm import tqdm
 from city_network.network_components import Node
 from city_network.config import TransitMode
@@ -16,6 +17,7 @@ def connect_spacial_graph(graph: nx.MultiDiGraph) -> None:
     connect_graph_using_tree(graph, tree, progress_bar)
 
 
+# TODO: write a test for this because it keeps breaking
 def connect_graph_using_tree(
     graph: nx.MultiDiGraph,
     tree: STRtree,
@@ -52,7 +54,7 @@ def connect_graph_using_tree(
             ]
             min_dist += increment
         ending_node = valid_targs[0]
-        _connect_subgraphs(graph, starting_node, ending_node)
+        graph = add_two_way_edge(graph, starting_node, ending_node)
         connect_graph_using_tree(graph, tree, progress_bar)
 
 
@@ -70,22 +72,24 @@ def _node_list_from_graph(graph: nx.MultiDiGraph) -> list[Node]:
     ]
 
 
-def _connect_subgraphs(
+def add_two_way_edge(
     graph: nx.MultiDiGraph, starting_node: Node, ending_node: Node
-) -> None:
+) -> nx.MultiDiGraph:
     # Both edges are needed as in general this will be a multi-di graph
+    # TODO: ifs here -> function is overloaded becuase we dont use Node everywhere
     graph.add_edge(
-        starting_node.network_id,
-        ending_node.network_id,
+        starting_node.network_id if starting_node.network_id else starting_node,
+        ending_node.network_id if ending_node.network_id else ending_node,
         edge_weight=TransitMode.WALK.resistance()
         * euclidean_distance(starting_node.location, ending_node.location),
     )
     graph.add_edge(
-        ending_node.network_id,
-        starting_node.network_id,
+        ending_node.network_id if ending_node.network_id else ending_node,
+        starting_node.network_id if starting_node.network_id else starting_node,
         edge_weight=TransitMode.WALK.resistance()
         * euclidean_distance(starting_node.location, ending_node.location),
     )
+    return graph
 
 
 def euclidean_distance(point1: Point, point2: Point):

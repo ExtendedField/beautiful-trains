@@ -5,7 +5,6 @@ from networkx import MultiDiGraph
 import os
 import osmnx as ox
 
-
 from schema import City
 from config.library import NetworkType
 from config.settings import settings
