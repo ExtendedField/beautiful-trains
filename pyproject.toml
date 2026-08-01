@@ -1,0 +1,40 @@
+[project]
+name = "beautiful-trains"
+version = "0.1.0"
+description = "Package for detecting and plotting public transit efficiency improvements"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "geoalchemy2>=0.18.1",
+    "geopandas>=1.1.2",
+    "momepy>=0.11.0",
+    "networkx>=3.6.1",
+    "numpy>=2.4.1",
+    "osmnx>=2.0.7",
+    "pandas>=2.3.3",
+    "plotly>=6.5.2",
+    "psycopg2>=2.9.11",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "pytest>=9.0.2",
+    "scipy>=1.17.0",
+    "shapely>=2.1.2",
+    "sodapy>=2.2.0",
+    "sqlalchemy>=2.0.45",
+    "tqdm>=4.67.1",
+    "types-networkx>=3.6.1.20260408",
+    "types-shapely>=2.1.0.20260408",
+    "types-tqdm>=4.67.3.20260408",
+]
+
+[tool.pyrefly]
+project-includes = ["src"]
+
+[tool.ruff]
+line-length = 92
+
+[dependency-groups]
+dev = [
+    "pyrefly>=1.1.1",
+    "ruff>=0.16.1",
+]

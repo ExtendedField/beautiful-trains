@@ -1,9 +1,0 @@
-pandas
-numpy
-sodapy
-plotly
-sqlalchemy
-geoalchemy2
-psycopg2
-tqdm
-scipy

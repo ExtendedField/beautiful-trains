@@ -2,12 +2,20 @@
 *.idea/
 *.pkl
 *__pycache__*
+*.vscode
 
 # venvs
 .venv*
 venv*
 
+# envs
+*.env
+
 # local data
-cache/*
+*cache*
+*./data*
+
+# legacy
+*./legacy*
 
 # temporary for testing
