@@ -1,5 +1,5 @@
+from city_network.network_components import Connection
 import networkx as nx
-import numpy as np
 from shapely import Point, STRtree
 from tqdm import tqdm
 
@@ -97,3 +97,27 @@ def add_two_way_edge(
 
 def euclidean_distance(point1: Point, point2: Point):
     return ((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2) ** 0.5
+
+
+def get_potential_new_connections(graph: nx.MultiDiGraph) -> list[Connection]:
+    graph_compliment = nx.Graph(nx.complement(graph))
+    original_nodes_with_date = graph.nodes(data=True)
+    return [
+        Connection(
+            Node(
+                network_id=starting_id,
+                location=Point(
+                    original_nodes_with_date[starting_id]["x"],
+                    original_nodes_with_date[starting_id]["y"],
+                ),
+            ),
+            Node(
+                network_id=ending_id,
+                location=Point(
+                    original_nodes_with_date[ending_id]["x"],
+                    original_nodes_with_date[ending_id]["y"],
+                ),
+            ),
+        )
+        for starting_id, ending_id in graph_compliment.edges()
+    ]
