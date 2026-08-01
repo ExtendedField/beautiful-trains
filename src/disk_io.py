@@ -1,12 +1,11 @@
-import pickle
 import json
+import pickle
 from pathlib import Path
 
 from networkx import MultiDiGraph
-from schema import City
 
-from schema import CityConfig
 from config.settings import settings
+from schema import City, CityConfig
 
 
 def get_city_config(city: str) -> CityConfig:

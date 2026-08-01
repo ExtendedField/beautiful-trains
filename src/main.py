@@ -1,8 +1,8 @@
+from city_config import city_osm_query_values
+from collect_data import get_city_networks
 from disk_io import store_improved_transit_network
 from improve_network import find_n_best_new_connections
-from collect_data import get_city_networks
 from schema import City
-from city_config import city_osm_query_values
 
 
 def improve_city(city: City):

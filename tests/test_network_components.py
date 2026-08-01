@@ -1,9 +1,16 @@
 from shapely import MultiLineString, Point
+
 from city_network import (
     config as cfg,
-    schemas as schm,
-    network_components as ntc,
+)
+from city_network import (
     network as net,
+)
+from city_network import (
+    network_components as ntc,
+)
+from city_network import (
+    schemas as schm,
 )
 
 

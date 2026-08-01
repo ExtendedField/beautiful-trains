@@ -1,16 +1,15 @@
-from networkx import MultiDiGraph
-from tqdm import tqdm
-import networkx as nx
-import numpy as np
 from uuid import uuid4
 
-from typing import List, Set
+import networkx as nx
+import numpy as np
+from networkx import MultiDiGraph
 from shapely import MultiLineString, Point, STRtree
+from tqdm import tqdm
 
-from city_network.network_components import Connection, Line, Node
-from city_network.utils import graph_from_shapes, connect_graph_using_tree
 from city_network.config import TransitMode
+from city_network.network_components import Connection, Line, Node
 from city_network.schema import TransitShape
+from city_network.utils import connect_graph_using_tree, graph_from_shapes
 
 
 class Network:
@@ -24,8 +23,8 @@ class Network:
     def __init__(
         self,
         city: str,
-        lines: List[Line],
-        transit_shapes: List[TransitShape],
+        lines: list[Line],
+        transit_shapes: list[TransitShape],
         walking_shapes: MultiLineString,
     ):
         self.city = city
@@ -38,14 +37,14 @@ class Network:
             for connections_set in unpacked_connections
             for connections in connections_set
         }
-        available_modes: Set[str] = set()
-        transit_nodes: List[Set[Node]] = list()
+        available_modes: set[str] = set()
+        transit_nodes: list[set[Node]] = list()
         for line in self.lines:
             available_modes.add(line.line_type)
             transit_nodes.append(line.stations)
 
         self.available_modes = available_modes
-        self.transit_nodes: Set[Node] = set().union(*transit_nodes)
+        self.transit_nodes: set[Node] = set().union(*transit_nodes)
 
         self.walking_graph = self._build_walking_graph()
         self.transit_graph = self._build_transit_graph()
@@ -79,7 +78,7 @@ class Network:
     def _combine_graph_layers(self, threshold: float = 0.0008) -> nx.Graph:
         node_list = np.array(list(self.nodes))
         self.tree = STRtree([node.location for node in node_list])
-        layer_connections: Set[Connection] = set()
+        layer_connections: set[Connection] = set()
         for node1 in tqdm(self.transit_nodes, desc="Stitching together graph layers"):
             neighborhood = node_list.take(
                 self.tree.query(node1.location, predicate="dwithin", distance=threshold)
@@ -121,7 +120,7 @@ class Network:
             )
             raise Exception(exception_msg)
 
-    def _get_walking_nodes(self) -> Set[Node]:
+    def _get_walking_nodes(self) -> set[Node]:
         return {
             Node(
                 net_id=uuid4(),
@@ -130,7 +129,7 @@ class Network:
             for lat, lon in self.walking_graph.nodes
         }
 
-    def _get_transit_nodes(self) -> Set[Connection]:
+    def _get_transit_nodes(self) -> set[Connection]:
         return {
             Connection(
                 station1=node1,

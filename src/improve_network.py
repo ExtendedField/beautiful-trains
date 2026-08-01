@@ -1,8 +1,10 @@
-from utils import add_two_way_edge
-from networkx import MultiDiGraph
-import networkx as nx
-from tqdm import tqdm
 from copy import deepcopy
+
+import networkx as nx
+from networkx import MultiDiGraph
+from tqdm import tqdm
+
+from utils import add_two_way_edge
 
 
 def find_n_best_new_connections(transit_network: MultiDiGraph, n: int = 1) -> MultiDiGraph:

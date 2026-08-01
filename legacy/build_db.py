@@ -5,13 +5,14 @@
 # --table accepts a specific table if only one table needs to be created or refreshed
 ###
 
-from collect_data.utils import build_table, add_to_db, read_city_json
 import argparse
-from data.dbmetadata.schemas import schemas
 import pickle
+
+from collect_data.utils import add_to_db, build_table, read_city_json
+from data.dbmetadata.schemas import schemas
 from sqlalchemy import (
-    create_engine,
     MetaData,
+    create_engine,
 )
 
 # pass in city

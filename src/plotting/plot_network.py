@@ -1,4 +1,3 @@
-import plotly
 from city_network.network import Network
 
 
@@ -41,14 +40,15 @@ def plot_map(
     :param graph_view: True to plot graph primitive, False to plot physical geometries
     """
     # reference link: https://plotly.com/python/network-graphs/
-    import plotly.graph_objects as go
-    from sqlalchemy import create_engine, select
     import pickle
+
     import pandas as pd
-    from plotting.utils import gen_graph_geoms
-    from plotting.utils import gen_trace
-    from shapely import MultiLineString
+    import plotly.graph_objects as go
     from networkx import barycenter, subgraph
+    from shapely import MultiLineString
+    from sqlalchemy import create_engine, select
+
+    from plotting.utils import gen_graph_geoms, gen_trace
 
     passwd = "conductor"  # encrypt somewhere buddy...
     engine = create_engine(
@@ -195,6 +195,7 @@ def plot_subgraphs(self, center=(0, 0)):
     from networkx import connected_components
     from plotly import graph_objects as go
     from shapely import MultiLineString
+
     from plotting.utils import gen_trace
 
     main_g = max(connected_components(self.graph), key=len)
@@ -207,13 +208,13 @@ def plot_subgraphs(self, center=(0, 0)):
     center = dict(lat=center[1], lon=center[0])
     fig = go.Figure(
         layout=go.Layout(
-            title=dict(text=f"<br>Chicago", font=dict(size=16)),
+            title=dict(text="<br>Chicago", font=dict(size=16)),
             showlegend=False,
             hovermode="closest",
             margin=dict(b=20, l=5, r=5, t=40),
             annotations=[
                 dict(
-                    text=f"Map of Chicago's rapid transit network",
+                    text="Map of Chicago's rapid transit network",
                     showarrow=False,
                     xref="paper",
                     yref="paper",

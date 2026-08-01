@@ -1,10 +1,10 @@
-from copy import deepcopy
-from tqdm import tqdm
-from city_network.network_components import Node
-from city_network.config import TransitMode
-from shapely import Point, STRtree
 import networkx as nx
 import numpy as np
+from shapely import Point, STRtree
+from tqdm import tqdm
+
+from city_network.config import TransitMode
+from city_network.network_components import Node
 
 
 def connect_spacial_graph(graph: nx.MultiDiGraph) -> None:

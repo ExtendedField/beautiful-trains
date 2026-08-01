@@ -3,8 +3,8 @@
 # report specific summary stats about the network.
 ###
 
-import pickle
 import argparse
+import pickle
 
 import networkx as nx
 

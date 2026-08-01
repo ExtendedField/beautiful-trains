@@ -1,13 +1,10 @@
 import networkx as nx
-import numpy as np
 from geopandas import GeoDataFrame, GeoSeries
-from shapely import MultiLineString, Point, STRtree
 from momepy import gdf_to_nx
-from networkx import relabel_nodes, Graph
+from networkx import Graph, relabel_nodes
+from shapely import MultiLineString, Point
 
-
-from city_network.network_components import Connection, Node
-from city_network.config import TransitMode
+from city_network.network_components import Node
 
 
 def graph_from_shapes(shapes: MultiLineString, relabel_mapping: dict = {}) -> Graph:

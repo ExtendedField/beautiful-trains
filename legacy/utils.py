@@ -1,9 +1,7 @@
-from sqlalchemy import Table
-import json
 from time import sleep
 
 import pandas as pd
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, Table
 from tqdm import tqdm
 
 from city_network.network_components import Connection
@@ -19,8 +17,8 @@ def build_table(metadata: MetaData, table_name: str, schema) -> Table:
     :param schema: desired schema imported from schemas.py
     """
     from sqlalchemy import (
-        Table,
         Column,
+        Table,
     )
 
     columns = [
@@ -78,7 +76,6 @@ def add_to_db(
         try:
             # this syntax may be different with other client APIs. May have to parameterize
             # or use a more generic HTTP request package.
-            import itertools
 
             num_rows = int(
                 client.get(table_id, query="select count(*)")[0]["count"]
@@ -130,7 +127,6 @@ def add_to_db(
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 
 
 def weighted_shortest_path(g, boardings, weight="travel_resistance"):

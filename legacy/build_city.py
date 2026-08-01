@@ -5,25 +5,26 @@
 
 # TODO: this file needs to be simplified by removing redundancy and repackaging certain parts into cleanly named functions
 
-import pandas as pd
-
-# consider storing all these classes in on file since they are rather compact presently
-from city_network.network_components import Connection, Node, Line
-from city_network.network import Network
-from plotting import utils
-
-from utils import connect_closest
-from collect_data.utils import add_to_db, read_city_json
-import pickle
 import argparse
-import numpy as np
-from sqlalchemy import create_engine, select, func
+import pickle
+
 import networkx as nx
-from tqdm import tqdm
+import numpy as np
+import pandas as pd
+from collect_data.utils import add_to_db, read_city_json
 from shapely import (
     MultiLineString,
     Point,
 )
+from sqlalchemy import create_engine, func, select
+from tqdm import tqdm
+
+from city_network.network import Network
+
+# consider storing all these classes in on file since they are rather compact presently
+from city_network.network_components import Connection, Line, Node
+from plotting import utils
+from utils import connect_closest
 
 # pass in city
 parser = argparse.ArgumentParser(
@@ -139,7 +140,7 @@ for route in tqdm(valid_routes, desc="Detecting bus routes"):
     end_points = dict()
     subline_id = 0
     num_loops = 0
-    for line in sublines.keys():
+    for line in sublines:
         order = sorted(
             [
                 (  # tuple order is important because sorted by default uses the first tuple value
@@ -184,9 +185,7 @@ for route in tqdm(valid_routes, desc="Detecting bus routes"):
 
 # build rail lines
 # create list of connections for each line
-for (
-    line
-) in (
+for line in (
     station_order.index
 ):  # cant use "lines" here because the lines may have different names
     id_list = station_order.loc[line, "order"]
@@ -230,8 +229,9 @@ print("Network created.")
 
 # TODO: find a way to analyze impact of changing the travel resistance of connections on graph summary stats.
 if include_data:
-    from utils import weighted_shortest_path
     from itertools import product
+
+    from utils import weighted_shortest_path
 
     # create a list of all connections that do not exist in graph (between lines only)
     print("Fetching summary stats for all possible new connections...")

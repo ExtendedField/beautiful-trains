@@ -1,11 +1,12 @@
-from uuid import UUID
 from typing import Any
+from uuid import UUID
+
+from city_network.schemas import LineColorPair
 from networkx import Graph
 from numpy import cos, sqrt
 from shapely import Point
 
 from city_network.config import TransitMode
-from city_network.schemas import LineColorPair
 
 # Connection and Node can both be pydantic schemas with helper funcs I think
 

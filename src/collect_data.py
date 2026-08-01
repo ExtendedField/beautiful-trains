@@ -1,13 +1,13 @@
-from utils import connect_spacial_graph
+import os
 from pathlib import Path
 
-from networkx import MultiDiGraph
-import os
 import osmnx as ox
+from networkx import MultiDiGraph
 
-from schema import City
 from config.library import NetworkType
 from config.settings import settings
+from schema import City
+from utils import connect_spacial_graph
 
 
 def get_city_networks(city: City) -> tuple[MultiDiGraph, MultiDiGraph]:

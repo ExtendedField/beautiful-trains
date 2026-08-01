@@ -1,5 +1,5 @@
-from shapely import Point
 from pydantic import BaseModel
+from shapely import Point
 
 
 class Node(BaseModel):

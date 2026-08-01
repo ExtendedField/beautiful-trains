@@ -1,5 +1,5 @@
 # TODO: split into two functions, one for lines and one for points and refactor in network.py accordingly.
-from shapely import MultiLineString, LineString
+from shapely import LineString, MultiLineString
 
 
 def gen_trace(trace_type, line_width, color, geom_data):
@@ -78,8 +78,8 @@ def gen_graph_geoms(g, layer, color=None):
     :returns: MultiLineString in correct format for plotting
     """
     if color:
-        condition = lambda u, v: layer in {u.node_type, v.node_type} and color in set(
-            u.colors + v.colors
+        condition = lambda u, v: (
+            layer in {u.node_type, v.node_type} and color in set(u.colors + v.colors)
         )
     else:
         condition = lambda u, v: layer in {u.node_type, v.node_type}

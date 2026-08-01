@@ -1,12 +1,12 @@
-from math import sqrt, cos
+from math import cos, sqrt
+from uuid import UUID
+
+from networkx import Graph
+from pydantic import BaseModel, ConfigDict
+from shapely import MultiLineString, Point
 
 from city_network.config import TransitMode
 from config.constants import KM_PER_DEG_LATITUDE_EARTH
-
-from pydantic import BaseModel, ConfigDict
-from networkx import Graph
-from shapely import Point, MultiLineString
-from uuid import UUID
 
 
 class LineColorPair(BaseModel):
