@@ -31,25 +31,29 @@ def connect_graph_using_tree(
         return
     else:
         node_list = _node_list_from_graph(graph)
-        largest_subgraph_length = len(max(nx.strongly_connected_components(graph), key=len))
+        largest_subgraph_length = len(
+            max(nx.strongly_connected_components(graph), key=len)
+        )
         disconnected_subgraphs = [
             graph.subgraph(subgraph)
             for subgraph in nx.strongly_connected_components(graph)
             if len(subgraph) < largest_subgraph_length
         ]
-        nodes_in_disconnected_subgraph = _node_list_from_graph(disconnected_subgraphs[0])
+        nodes_in_disconnected_subgraph = _node_list_from_graph(
+            disconnected_subgraphs[0]
+        )
         starting_node = nodes_in_disconnected_subgraph[0]
-        valid_targs = []
+        valid_targs: list[Node] = []
         while (min_dist < max_dist) & (len(valid_targs) < 1):
+            nearby_nodes_indexes = tree.query(
+                starting_node.location,
+                predicate="dwithin",
+                distance=min_dist,
+            )  # np.array of int
+            nearby_nodes = [node_list[int(i)] for i in nearby_nodes_indexes]
             valid_targs += [
                 node
-                for node in np.array(node_list)[
-                    tree.query(
-                        starting_node.location,
-                        predicate="dwithin",
-                        distance=min_dist,
-                    )
-                ]
+                for node in nearby_nodes
                 if node not in nodes_in_disconnected_subgraph
             ]
             min_dist += increment
@@ -76,16 +80,15 @@ def add_two_way_edge(
     graph: nx.MultiDiGraph, starting_node: Node, ending_node: Node
 ) -> nx.MultiDiGraph:
     # Both edges are needed as in general this will be a multi-di graph
-    # TODO: ifs here -> function is overloaded becuase we dont use Node everywhere
     graph.add_edge(
-        starting_node.network_id if starting_node.network_id else starting_node,
-        ending_node.network_id if ending_node.network_id else ending_node,
+        starting_node.network_id,
+        ending_node.network_id,
         edge_weight=TransitMode.WALK.resistance()
         * euclidean_distance(starting_node.location, ending_node.location),
     )
     graph.add_edge(
-        ending_node.network_id if ending_node.network_id else ending_node,
-        starting_node.network_id if starting_node.network_id else starting_node,
+        ending_node.network_id,
+        starting_node.network_id,
         edge_weight=TransitMode.WALK.resistance()
         * euclidean_distance(starting_node.location, ending_node.location),
     )
