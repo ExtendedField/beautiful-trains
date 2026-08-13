@@ -36,7 +36,7 @@ def _get_graph_of_type(city: City, network_type: NetworkType) -> MultiDiGraph:
         city.open_street_map_city_name,
         network_type=network_type,
         simplify=True,
-        retain_all=True,
+        retain_all=False,
     )
     print("Downloaded.")
     _save_network(city_network, path)

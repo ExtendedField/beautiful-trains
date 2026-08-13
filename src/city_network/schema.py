@@ -71,9 +71,7 @@ class Connection(BaseModel):
         lat2 = self.node2.lat()
         x_dist = long1 - long2
         y_dist = (lat1 - lat2) * cos(long2)
-        return float(
-            KM_PER_DEG_LATITUDE_EARTH * sqrt(x_dist**2 + y_dist**2) * min_resistance
-        )
+        return KM_PER_DEG_LATITUDE_EARTH * sqrt(x_dist**2 + y_dist**2) * min_resistance
 
 
 class Line(BaseModel):
@@ -94,4 +92,6 @@ class Line(BaseModel):
         return line_graph
 
     def __str__(self):
-        return f"{self.name_and_color.name} line. number of stations:{len(self.stations)}"
+        return (
+            f"{self.name_and_color.name} line. number of stations:{len(self.stations)}"
+        )

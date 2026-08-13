@@ -100,7 +100,10 @@ def euclidean_distance(point1: Point, point2: Point):
 
 
 def get_potential_new_connections(graph: nx.MultiDiGraph) -> list[Connection]:
-    graph_compliment = nx.Graph(nx.complement(graph))
+    # TODO: this whole function is insanely heavy.
+    #       The graph simply needs to be more conservative. custom leaner query
+    #       Also, graph compliment -> search all connections is no sclabale at all
+    graph_compliment = nx.Graph(nx.complement(nx.DiGraph(graph)))
     original_nodes_with_date = graph.nodes(data=True)
     return [
         Connection(
